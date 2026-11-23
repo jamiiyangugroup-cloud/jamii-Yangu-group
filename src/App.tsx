@@ -4,6 +4,7 @@ import Logo from './components/Logo'
 import MembershipDialog from './components/MembershipDialog'
 import MemberPortal from './components/MemberPortal'
 import StaffPortal from './components/StaffPortal'
+import ChamaPortal from './components/ChamaPortal'
 import JourneyVisual from './components/JourneyVisual'
 import BenefitOrbitVisual from './components/BenefitOrbitVisual'
 
@@ -57,6 +58,7 @@ export default function App() {
 
   if (window.location.pathname.startsWith('/staff')) return <StaffPortal />
   if (window.location.pathname.startsWith('/member')) return <MemberPortal />
+  if (window.location.pathname.startsWith('/chama')) return <ChamaPortal />
 
   return <>
     <header className={`topbar ${scrolled ? 'topbar-scrolled' : ''}`}>
@@ -67,7 +69,7 @@ export default function App() {
         <nav id="main-navigation" className={menuOpen ? 'nav nav-open' : 'nav'} aria-label="Main navigation" aria-hidden={compactNav && !menuOpen}>
           <a href="#home" onClick={closeMenu}>Home</a><a href="#about" onClick={closeMenu}>About</a>
           <details className="nav-dropdown"><summary>Services <span>⌄</span></summary><div className="nav-menu"><a href="#services" onClick={closeMenu}><strong>Savings and planning</strong><small>Build savings habits and set personal goals.</small></a><a href="#services" onClick={closeMenu}><strong>Financial support</strong><small>Review eligibility and application information.</small></a><a href="/member" onClick={closeMenu}><strong>Verified essential services</strong><small>Browse provider listings when available.</small></a></div></details>
-          <a href="#opportunities" onClick={closeMenu}>Opportunities</a><a href="#contact" onClick={closeMenu}>Contact</a>
+          <a href="#opportunities" onClick={closeMenu}>Opportunities</a><a href="/chama" onClick={closeMenu}>For Chamas</a><a href="#contact" onClick={closeMenu}>Contact</a>
           <details className="nav-dropdown nav-more"><summary>Explore <span>⌄</span></summary><div className="nav-menu"><a href="#how" onClick={closeMenu}><strong>How to become a member</strong><small>Create an account, verify your email and apply for review.</small></a><a href="#benefits" onClick={closeMenu}><strong>Member benefits</strong><small>Explore planning tools and published partner services.</small></a><a href="/member" onClick={closeMenu}><strong>Member marketplace</strong><small>Discover member listings in your workspace.</small></a><a href="#faqs" onClick={closeMenu}><strong>Frequently asked questions</strong><small>Read answers about accounts and cooperative services.</small></a><a href="/privacy.html" onClick={closeMenu}><strong>Privacy notice</strong><small>How account and application details are handled.</small></a></div></details>
           <button className="button button-outline nav-login" onClick={() => { openForm('signin'); closeMenu() }}>Sign in <ArrowUpRight size={15} /></button><button className="button button-primary nav-join" onClick={() => { openForm('signup'); closeMenu() }}>Become a member</button>
         </nav>

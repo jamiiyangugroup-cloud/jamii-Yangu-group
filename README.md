@@ -80,6 +80,13 @@ If commands are not recognized, install Node.js 20+ and reopen PowerShell. If de
 - Staff do not self-register. An authorized project owner must create the Auth user, assign the matching role and geographic scope using a controlled privileged process, and require MFA. The first Super Admin must be bootstrapped by the project owner; no public endpoint can grant roles.
 - Migration `202611230004_staff_portals.sql` adds Super Finance/Regional Finance roles, role discovery and scoped summary RPCs. Apply and test all migrations before assigning real staff. The current UI displays summary figures only; it does not yet provide approval, transaction, or staff-management actions.
 
+### Independent chama workspaces
+
+- Open `/chama` to create an account, register a chama, or join one with its private invitation code. A verified email account is required. The chama owner can appoint Chairpersons and Treasurers, set manual Paybill/Till instructions, reconcile deposits, and review member savings or shared-fund withdrawal requests.
+- Withdrawals are limited to reconciled ledger balances, require approval from two different officers, and must be paid outside the app before an authorized officer records the verified transfer reference. This is an auditable request-and-record workflow; it does **not** send a payout.
+- Payment settings currently show manual collection instructions. STK Push requires Daraja application credentials, the shortcode-specific passkey, callback validation, and provider configuration. M-Pesa B2C payout access is also required for automatic withdrawals. A Paybill/Till number by itself does not enable either feature. Do not enter provider secrets in the browser or expose them as `VITE_` variables.
+- Migration `202611230008_chama_workspaces.sql` must be applied to the Supabase project before chama registration and financial actions work. It has not been applied or run against a Supabase database in this workspace.
+
 Get the Project URL/publishable key in the Supabase Dashboard's **Connect** panel or **Settings → API Keys**. No project credentials were provided or invented in this codebase.
 
 ## Vercel deployment
