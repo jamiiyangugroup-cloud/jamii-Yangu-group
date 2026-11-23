@@ -72,6 +72,7 @@ export default function GlobeVisual() {
     const wrapper = wrapperRef.current, host = earthHostRef.current, mapCanvas = mapRef.current
     if (!wrapper || !host || !mapCanvas) return
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const lowPowerMode = window.innerWidth <= 480 || (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4) || window.matchMedia('(prefers-reduced-data: reduce)').matches
     let renderer: THREE.WebGLRenderer | null = null, scene: THREE.Scene | null = null, camera: THREE.PerspectiveCamera | null = null
     let earthGroup: THREE.Group | null = null, earthMaterial: THREE.MeshPhongMaterial | null = null, cloudMaterial: THREE.MeshPhongMaterial | null = null
     let observer: IntersectionObserver, resizeObserver: ResizeObserver, animationFrame = 0, active = false, disposed = false, dragging = false, userTouchedEarth = false, tour: gsap.core.Timeline | null = null, lastFrame = 0, elapsed = 0
@@ -101,7 +102,7 @@ export default function GlobeVisual() {
     const initScene = async () => {
       if (renderer || disposed) return
       try {
-        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false })
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !lowPowerMode, powerPreference: lowPowerMode ? 'low-power' : 'high-performance', preserveDrawingBuffer: false })
       } catch {
         setWebgl(false); return
       }
@@ -186,10 +187,10 @@ export default function GlobeVisual() {
 
     const resize = () => {
       if (!renderer || !camera) return
-      const box = wrapper.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, window.innerWidth < 640 ? 1.25 : 1.7)
+      const box = wrapper.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, lowPowerMode ? 1 : window.innerWidth < 640 ? 1.25 : 1.7)
       renderer.setPixelRatio(dpr); renderer.setSize(Math.max(1, box.width), Math.max(1, box.height), false)
       camera.aspect = box.width / Math.max(1, box.height); camera.fov = window.innerWidth < 640 ? 43 : 39; camera.updateProjectionMatrix(); renderOnce()
-      const mapDpr = Math.min(window.devicePixelRatio || 1, 1.4); mapCanvas.width = Math.round(box.width * mapDpr); mapCanvas.height = Math.round(box.height * mapDpr); canvasContext.setTransform(mapDpr, 0, 0, mapDpr, 0, 0)
+      const mapDpr = Math.min(window.devicePixelRatio || 1, lowPowerMode ? 1 : 1.4); mapCanvas.width = Math.round(box.width * mapDpr); mapCanvas.height = Math.round(box.height * mapDpr); canvasContext.setTransform(mapDpr, 0, 0, mapDpr, 0, 0)
     }
 
     let pointerX = 0, pointerY = 0
@@ -228,6 +229,7 @@ export default function GlobeVisual() {
     const renderFrame = (now: number) => {
       animationFrame = 0
       if (!active || disposed || !renderer || !scene || !camera) return
+      if (lowPowerMode && lastFrame && now - lastFrame < 32) { animationFrame = requestAnimationFrame(renderFrame); return }
       const delta = lastFrame ? Math.min((now - lastFrame) / 1000, .05) : 0; lastFrame = now; elapsed += delta
       if (!reducedMotion && earthGroup) { if (!dragging && mapProgress.value < .96) earthGroup.rotation.y += delta * .028; const clouds = earthGroup.children[1]; if (clouds instanceof THREE.Mesh && clouds.material instanceof THREE.Material && !dragging) clouds.rotation.y += delta * .034 }
       renderer.render(scene, camera)

@@ -12,7 +12,7 @@ export default function JourneyVisual(){
     const ctx=canvas.getContext('2d')!
     const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let active=false,raf=0,t=0
-    const resize=()=>{const box=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,1.5);canvas.width=Math.round(box.width*dpr);canvas.height=Math.round(box.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)}
+    const resize=()=>{const box=canvas.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio||1,window.innerWidth<=480?1:1.5);canvas.width=Math.round(box.width*dpr);canvas.height=Math.round(box.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)}
     const observer=new IntersectionObserver(([entry])=>{active=entry.isIntersecting;if(active)draw()}, {threshold:.08})
     observer.observe(canvas);resize();window.addEventListener('resize',resize)
     function draw(){if(!active)return

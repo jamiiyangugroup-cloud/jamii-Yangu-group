@@ -1,0 +1,23 @@
+.staff-nav-toggle,.staff-sidebar-scrim{display:none}
+.staff-nav-toggle{min-width:44px;min-height:44px;align-items:center;justify-content:center;border:1px solid #dce5dc;border-radius:8px;background:#fff;color:#205b3e}
+@media(max-width:900px), (orientation:landscape) and (max-height:500px) and (max-width:1024px){
+  .staff-app .staff-topbar{position:sticky;top:0;z-index:60;height:68px;padding-inline:16px}
+  .staff-auth-layout{grid-template-columns:1fr;gap:22px;padding-block:30px}
+  .staff-nav-toggle{display:flex}
+  .staff-workspace{position:relative}
+  .staff-sidebar{position:fixed;z-index:62;top:68px;left:0;bottom:0;width:min(320px,88vw);height:calc(100dvh - 68px);min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:22px 16px max(20px,env(safe-area-inset-bottom));box-shadow:18px 0 40px #0b241c20;transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s ease}
+  .staff-sidebar.is-open{transform:translateX(0);visibility:visible}
+  .staff-sidebar-scrim{display:block;position:fixed;z-index:61;inset:68px 0 0;width:100%;height:calc(100dvh - 68px);border:0;background:#081e3990}
+  .staff-side-label{padding-bottom:14px}
+  .staff-portal-choice{min-height:48px;padding:10px}
+  .staff-portal-choice>span:first-child{width:32px;height:32px}
+  .staff-member-link{min-height:48px;margin-top:12px}
+  .staff-main{padding:22px 14px}
+  .staff-page-head{min-width:0}
+  .staff-refresh{min-width:44px;min-height:44px;justify-content:center}
+  .staff-metric{min-height:130px}
+  .staff-metric small{font-size:10px}
+}
+@media(max-width:350px){.staff-app .staff-topbar{padding-inline:10px}.staff-app .brand{min-width:0;gap:6px}.staff-app .brand-copy strong{font-size:10px}.staff-app .brand-copy small{font-size:6px}.staff-header-right{gap:7px}.staff-logout{font-size:0;min-width:44px;min-height:44px;justify-content:center}.staff-logout svg{width:17px;height:17px}}
+@media(orientation:landscape) and (max-height:500px) and (max-width:900px){.staff-sidebar{padding-top:12px}.staff-mfa-wrap{padding-block:12px}.staff-mfa-card{max-height:calc(100dvh - 24px);overflow:auto}}
+@media(prefers-reduced-motion:reduce){.staff-sidebar{transition:none}}

@@ -9,7 +9,7 @@ export default function BenefitOrbitVisual(){
     const ctx=canvas.getContext('2d')!
     const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches
     let raf=0,t=0,visible=false
-    const resize=()=>{const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,1.5);canvas.width=Math.max(1,Math.round(r.width*d));canvas.height=Math.max(1,Math.round(r.height*d));ctx.setTransform(d,0,0,d,0,0)}
+    const resize=()=>{const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,innerWidth<=480?1:1.5);canvas.width=Math.max(1,Math.round(r.width*d));canvas.height=Math.max(1,Math.round(r.height*d));ctx.setTransform(d,0,0,d,0,0)}
     const observer=new IntersectionObserver(([e])=>{visible=e.isIntersecting;if(visible)draw()},{threshold:.05});observer.observe(canvas);resize();addEventListener('resize',resize)
     function draw(){if(!visible)return
       const w=canvas.clientWidth,h=canvas.clientHeight,cx=w/2,cy=h/2

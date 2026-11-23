@@ -17,6 +17,7 @@ const services = [
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [compactNav, setCompactNav] = useState(() => window.innerWidth <= 1180)
   const [scrolled, setScrolled] = useState(false)
   const [showForm, setShowForm] = useState(() => new URLSearchParams(window.location.search).get('join') === '1')
   const [formMode, setFormMode] = useState<'signup' | 'signin'>('signup')
@@ -30,6 +31,30 @@ export default function App() {
     return () => { window.removeEventListener('scroll', onScroll); observer.disconnect() }
   }, [])
 
+  useEffect(() => {
+    if (!menuOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [menuOpen])
+
+  useEffect(() => {
+    const updateLayout = () => {
+      const compact = window.innerWidth <= 1180
+      setCompactNav(compact)
+      if (!compact) setMenuOpen(false)
+    }
+    window.addEventListener('resize', updateLayout)
+    return () => window.removeEventListener('resize', updateLayout)
+  }, [])
+
   if (window.location.pathname.startsWith('/staff')) return <StaffPortal />
   if (window.location.pathname.startsWith('/member')) return <MemberPortal />
 
@@ -37,8 +62,9 @@ export default function App() {
     <header className={`topbar ${scrolled ? 'topbar-scrolled' : ''}`}>
       <div className="topbar-inner">
         <Logo />
-        <button className="menu-toggle" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button>
-        <nav className={menuOpen ? 'nav nav-open' : 'nav'} aria-label="Main navigation">
+        <button className="menu-toggle" aria-label={menuOpen ? 'Close navigation' : 'Open navigation'} aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button>
+        {menuOpen && <button className="nav-scrim" type="button" aria-label="Close navigation" onClick={closeMenu} />}
+        <nav id="main-navigation" className={menuOpen ? 'nav nav-open' : 'nav'} aria-label="Main navigation" aria-hidden={compactNav && !menuOpen}>
           <a href="#home" onClick={closeMenu}>Home</a><a href="#about" onClick={closeMenu}>About</a>
           <details className="nav-dropdown"><summary>Services <span>⌄</span></summary><div className="nav-menu"><a href="#services" onClick={closeMenu}><strong>Savings and planning</strong><small>Build savings habits and set personal goals.</small></a><a href="#services" onClick={closeMenu}><strong>Financial support</strong><small>Review eligibility and application information.</small></a><a href="/member" onClick={closeMenu}><strong>Verified essential services</strong><small>Browse provider listings when available.</small></a></div></details>
           <a href="#opportunities" onClick={closeMenu}>Opportunities</a><a href="#contact" onClick={closeMenu}>Contact</a>
