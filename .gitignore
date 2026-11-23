@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.*.local
+backend/target/
+*.log
+.idea/
+.vscode/
+tsconfig.tsbuildinfo
+.globe-*

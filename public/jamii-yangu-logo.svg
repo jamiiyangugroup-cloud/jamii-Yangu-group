@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" role="img" aria-label="Two people helping each other beneath a sunrise">
+ <defs><linearGradient id="sun" x2="0" y2="1"><stop stop-color="#ffd34f"/><stop offset="1" stop-color="#f6a900"/></linearGradient></defs>
+ <g fill="none" stroke="#f3ad13" stroke-width="5" stroke-linecap="round"><path d="M70 9v14M34 20l8 13M106 20l-8 13M15 50l15 5M125 50l-15 5"/><path fill="url(#sun)" stroke="none" d="M24 78a46 46 0 0 1 92 0z"/></g>
+ <path fill="#205b3e" d="M12 88c18-12 37-12 56 0 18-12 39-12 60 0v11c-19-11-40-11-60 2-20-13-39-13-56-2z"/>
+ <g fill="#2b563d"><circle cx="48" cy="49" r="8"/><path d="M42 59h12l7 18-13 7-12-5 4-13z"/><path d="m49 68 16 5 8-8 5 4-10 13-20-5z"/><circle cx="88" cy="39" r="8"/><path d="M81 49h14l7 18-9 12-15-6-5-10z"/><path d="m81 58-12 12-9 1v5l13 1 14-12z"/></g>
+ <path d="M60 77l9-8 9 5" fill="none" stroke="#2b563d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+ <path d="M26 105h88" stroke="#f3ad13" stroke-width="4" stroke-linecap="round"/>
+</svg>

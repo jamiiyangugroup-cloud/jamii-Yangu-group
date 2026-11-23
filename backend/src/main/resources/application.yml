@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: jamii-yangu-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/jamii_yangu}
+    username: ${DATABASE_USERNAME:jamii}
+    password: ${DATABASE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+server:
+  error:
+    include-message: never
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:true}
+        same-site: strict
+app:
+  web-origin: ${WEB_ORIGIN:http://localhost:5173}
+  membership-applications:
+    enabled: ${MEMBERSHIP_APPLICATIONS_ENABLED:false}
