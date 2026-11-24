@@ -58,23 +58,27 @@ Deno.serve(async (request) => {
   const applicationId = String(form.get('applicationId') ?? '') || null
   const memberId = String(form.get('memberId') ?? '') || null
   const bucket = bucketFor(category)
-  if (!(file instanceof File) || !bucket || Boolean(applicationId) === Boolean(memberId) || file.size < 1 || file.size > 10 * 1024 * 1024) {
+  const profileOnly = category === 'PROFILE_PHOTO' && !applicationId && !memberId
+  if (!(file instanceof File) || !bucket || (!profileOnly && Boolean(applicationId) === Boolean(memberId)) || file.size < 1 || file.size > 10 * 1024 * 1024) {
     return Response.json({ error: 'Choose a supported document smaller than 10 MB and a valid application or member record.' }, { status: 400, headers })
   }
+  if (category === 'PROFILE_PHOTO' && file.size > 5 * 1024 * 1024) return Response.json({ error: 'Profile photos must be smaller than 5 MB.' }, { status: 400, headers })
   if (thirdPartyCategories.has(category) && !thirdPartyConsent) return Response.json({ error: 'Permission from the document owner is required.' }, { status: 400, headers })
 
   if (applicationId) {
     const { data } = await userClient.from('membership_applications').select('id').eq('id', applicationId).eq('user_id', user.id).maybeSingle()
     if (!data) return Response.json({ error: 'Application is not available to this account.' }, { status: 403, headers })
-  } else {
+  } else if (memberId) {
     const { data } = await userClient.from('members').select('id').eq('id', memberId).eq('user_id', user.id).maybeSingle()
     if (!data) return Response.json({ error: 'Membership is not available to this account.' }, { status: 403, headers })
+  } else if (!profileOnly) {
+    return Response.json({ error: 'Choose an application or membership record.' }, { status: 400, headers })
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer())
   const detected = sniff(bytes)
   if (!detected) return Response.json({ error: 'Only valid PDF, JPEG, and PNG documents are accepted.' }, { status: 415, headers })
-  if (category === 'PASSPORT_PHOTO' && detected.mime === 'application/pdf') return Response.json({ error: 'A passport-style photo must be a JPEG or PNG image.' }, { status: 415, headers })
+  if ((category === 'PASSPORT_PHOTO' || category === 'PROFILE_PHOTO') && detected.mime === 'application/pdf') return Response.json({ error: 'A profile or passport photo must be a JPEG or PNG image.' }, { status: 415, headers })
   const adminClient = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } })
   const path = `${user.id}/${crypto.randomUUID()}.${detected.ext}`
   const { error: uploadError } = await adminClient.storage.from(bucket).upload(path, bytes, { contentType: detected.mime, upsert: false })
