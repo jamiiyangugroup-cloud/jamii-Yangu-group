@@ -32,7 +32,7 @@ const metricNames: Record<string, string> = {
   verified_payments_this_month_kes: 'Verified payments this month',
 }
 
-export default function StaffPortal() {
+export default function StaffPortal({ preferredPortalKey }: { preferredPortalKey?: string }) {
   const [session, setSession] = useState<Session | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -83,11 +83,13 @@ export default function StaffPortal() {
     }
     const { data, error: accessError } = await supabase.rpc('get_my_staff_portals')
     if (accessError) { setPortals([]); setSelected(null); setPhase('workspace'); setError('Your account has no active staff portal assignment. Contact an authorized cooperative administrator.') ; return }
-    const available = (data ?? []) as Portal[]
+    const assigned = (data ?? []) as Portal[]
+    const available = preferredPortalKey ? assigned.filter((portal) => portal.portal_key === preferredPortalKey) : assigned
     setPortals(available)
     setSelected((current) => current && available.some((portal) => portal.portal_key === current.portal_key && portal.region_id === current.region_id) ? current : available[0] ?? null)
+    if (preferredPortalKey && assigned.length && !available.length) setError('Your account is not assigned to this portal. Choose a portal authorized for your staff role.')
     setPhase('workspace')
-  }, [])
+  }, [preferredPortalKey])
 
   useEffect(() => {
     if (!supabase) { setPhase('login'); return }
@@ -108,7 +110,7 @@ export default function StaffPortal() {
       p_region_id: portal.region_id,
     })
     if (summaryError) { setSummary(null); setError('The portal summary could not be loaded. Your access may have changed; sign in again or contact support.') }
-    else setSummary(data as Summary)
+    else setSummary(Object.fromEntries(Object.entries(data as Summary).slice(0,4)))
     setBusy(false)
   }, [])
 
@@ -153,9 +155,9 @@ export default function StaffPortal() {
   const scopeName = selected?.region_name ?? 'Organization wide'
   const portalDescriptions: Record<string,string> = {
     'super-admin':'Organization-wide administration and oversight. Financial approvals remain subject to their separate controls.',
-    'super-finance':'Organization-wide financial oversight across all regions. Operational reconciliation and report approval actions are not yet available in this portal.',
-    'regional-admin':'Administrative activity and member application summaries for your assigned region only.',
-    'regional-finance':'Financial summaries for your assigned region only. Regional report submission and reconciliation actions are not yet available.',
+    'super-finance':'Cooperative-wide financial oversight across all regions.',
+    'regional-admin':'Membership activity and applications for your assigned region.',
+    'regional-finance':'Financial activity and reconciliation for your assigned region.',
   }
 
   return <div className="staff-app">

@@ -1,0 +1,12 @@
+{
+  "id": "/apps/member",
+  "name": "Jamii Yangu Member Portal",
+  "short_name": "JYG Member",
+  "description": "Your Jamii Yangu membership, verified records and private planning tools.",
+  "start_url": "/apps/member",
+  "scope": "/apps/",
+  "display": "standalone",
+  "background_color": "#f3f6fa",
+  "theme_color": "#155596",
+  "icons": [{ "src": "/icons/member.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

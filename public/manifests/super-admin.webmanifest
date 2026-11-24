@@ -1,0 +1,12 @@
+{
+  "id": "/apps/super-admin",
+  "name": "Jamii Yangu Super Admin Portal",
+  "short_name": "JYG Super Admin",
+  "description": "System-wide cooperative administration workspace.",
+  "start_url": "/apps/super-admin",
+  "scope": "/apps/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#155596",
+  "icons": [{ "src": "/icons/super-admin.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

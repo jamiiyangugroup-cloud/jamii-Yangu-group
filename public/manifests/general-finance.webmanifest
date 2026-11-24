@@ -1,0 +1,12 @@
+{
+  "id": "/apps/general-finance",
+  "name": "Jamii Yangu General Finance Portal",
+  "short_name": "JYG General Finance",
+  "description": "Consolidated cooperative finance workspace.",
+  "start_url": "/apps/general-finance",
+  "scope": "/apps/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#155596",
+  "icons": [{ "src": "/icons/general-finance.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

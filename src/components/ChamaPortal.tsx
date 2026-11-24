@@ -9,7 +9,7 @@ type Chama = { id:string; name:string; role:string; status:string; invite_code:s
 type Entry = { id:string; account_type:string; member_user_id:string|null; direction:string; amount_kes:number; external_reference:string; description:string; created_at:string }
 type Withdrawal = { id:string; account_type:string; member_user_id:string|null; amount_kes:number; destination_phone:string; purpose:string; status:string; approved_by:string[]; requested_by:string; payout_reference:string|null; created_at:string }
 type GroupMember = { user_id:string; role:string; status:string }
-const cash = (n:number) => `KES ${Number(n||0).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2})}`
+const cash = (n:number) => `KSh ${Number(n||0).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2})}`
 const phone254 = (raw:string) => { const n=raw.replace(/\D/g,''); return n.startsWith('254')?n:n.startsWith('0')?`254${n.slice(1)}`:`254${n}` }
 
 export default function ChamaPortal() {

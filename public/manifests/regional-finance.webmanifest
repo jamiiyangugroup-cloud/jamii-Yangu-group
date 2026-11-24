@@ -1,0 +1,12 @@
+{
+  "id": "/apps/regional-finance",
+  "name": "Jamii Yangu Regional Finance Portal",
+  "short_name": "JYG Region Finance",
+  "description": "Regional cooperative finance workspace.",
+  "start_url": "/apps/regional-finance",
+  "scope": "/apps/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#155596",
+  "icons": [{ "src": "/icons/regional-finance.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

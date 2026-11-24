@@ -1,0 +1,12 @@
+{
+  "id": "/apps/regional-admin",
+  "name": "Jamii Yangu Regional Admin Portal",
+  "short_name": "JYG Admin",
+  "description": "Regional cooperative administration workspace.",
+  "start_url": "/apps/regional-admin",
+  "scope": "/apps/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#155596",
+  "icons": [{ "src": "/icons/regional-admin.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

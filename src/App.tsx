@@ -20,8 +20,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [compactNav, setCompactNav] = useState(() => window.innerWidth <= 1180)
   const [scrolled, setScrolled] = useState(false)
-  const [showForm, setShowForm] = useState(() => new URLSearchParams(window.location.search).get('join') === '1' || new URLSearchParams(window.location.search).get('mode') === 'recovery' || window.location.hash.includes('type=recovery'))
-  const [formMode, setFormMode] = useState<'signup' | 'signin' | 'update'>(() => new URLSearchParams(window.location.search).get('mode') === 'recovery' || window.location.hash.includes('type=recovery') ? 'update' : 'signup')
+  const [showForm, setShowForm] = useState(() => new URLSearchParams(window.location.search).get('join') === '1' || ['signin','recovery'].includes(new URLSearchParams(window.location.search).get('mode')??'') || window.location.hash.includes('type=recovery'))
+  const [formMode, setFormMode] = useState<'signup' | 'signin' | 'update'>(() => new URLSearchParams(window.location.search).get('mode') === 'recovery' || window.location.hash.includes('type=recovery') ? 'update' : new URLSearchParams(window.location.search).get('mode') === 'signin' ? 'signin' : 'signup')
   const openForm = (mode: 'signup' | 'signin') => { setFormMode(mode); setShowForm(true) }
   const closeMenu = () => setMenuOpen(false)
   useEffect(() => {
@@ -56,6 +56,12 @@ export default function App() {
     return () => window.removeEventListener('resize', updateLayout)
   }, [])
 
+  const portalApp = window.location.pathname.match(/^\/apps\/(member|regional-admin|regional-finance|general-finance|super-admin)\/?$/)?.[1]
+  if (portalApp === 'member') return <MemberPortal />
+  if (portalApp) {
+    const portalKey = portalApp === 'general-finance' ? 'super-finance' : portalApp
+    return <StaffPortal preferredPortalKey={portalKey} />
+  }
   if (window.location.pathname.startsWith('/staff')) return <StaffPortal />
   if (window.location.pathname.startsWith('/member')) return <MemberPortal />
   if (window.location.pathname.startsWith('/chama')) return <ChamaPortal />

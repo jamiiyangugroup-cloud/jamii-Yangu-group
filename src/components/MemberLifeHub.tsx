@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, CalendarDays, Check, CircleDollarSign, ExternalLink, HeartPulse, Home, LifeBuoy, Megaphone, Plus, RefreshCw, Search, ShoppingBag, Sparkles, Target, Wallet } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, BookOpen, BriefcaseBusiness, CalendarDays, Check, CircleDollarSign, ExternalLink, HeartPulse, Home, LifeBuoy, Megaphone, Plus, RefreshCw, Search, ShoppingBag, Sparkles, Target, Wallet, Pencil, Trash2, X } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import '../life.css'
@@ -11,28 +11,35 @@ type Offer = { id:string; title:string; description:string; terms:string; offer_
 type Opportunity = { id:string; opportunity_type:string; title:string; organization_name:string; description:string; eligibility:string; application_url:string|null; deadline:string|null }
 type Announcement = { id:string; title:string; body:string; published_at:string }
 type Listing = { id:string; title:string; category:string; description:string; price_kes:number|null; town:string; status:string }
-type LifeData = { entries:Entry[]; goals:Goal[]; familyGoals:Goal[]; services:DirectoryRow[]; offers:Offer[]; housing:DirectoryRow[]; opportunities:Opportunity[]; announcements:Announcement[]; listings:Listing[]; tickets:{id:string;subject:string;status:string;created_at:string}[] }
+type CountyOption={id:string;name:string}
+type LifeData = { entries:Entry[]; goals:Goal[]; familyGoals:Goal[]; services:DirectoryRow[]; offers:Offer[]; housing:DirectoryRow[]; opportunities:Opportunity[]; announcements:Announcement[]; listings:Listing[]; tickets:{id:string;subject:string;status:string;created_at:string}[];counties:CountyOption[] }
+type LifeTab = 'planner'|'savings'|'family-goals'|'services'|'opportunities'|'marketplace'|'community'|'help'
 
-const empty:LifeData = {entries:[],goals:[],familyGoals:[],services:[],offers:[],housing:[],opportunities:[],announcements:[],listings:[],tickets:[]}
+const empty:LifeData = {entries:[],goals:[],familyGoals:[],services:[],offers:[],housing:[],opportunities:[],announcements:[],listings:[],tickets:[],counties:[]}
 const today = () => new Date().toISOString().slice(0,10)
 const monthStart = () => `${today().slice(0,7)}-01`
-const cash = (amount:number) => `KES ${Number(amount||0).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2})}`
+const cash = (amount:number) => `KSh ${Number(amount||0).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2})}`
 const label = (value:string) => value.toLowerCase().replace(/_/g,' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
-export default function MemberLifeHub({session,memberId}:{session:Session;memberId:string|null}) {
-  const [tab,setTab] = useState<'planner'|'services'|'opportunities'|'marketplace'|'community'|'help'>('planner')
+export default function MemberLifeHub({session,memberId,module}:{session:Session;memberId:string|null;module?:LifeTab}) {
+  const [tab,setTab] = useState<LifeTab>(module??'planner')
   const [data,setData] = useState<LifeData>(empty)
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
   const [success,setSuccess] = useState('')
   const [serviceFilter,setServiceFilter] = useState('')
   const [saved,setSaved] = useState<string[]>([])
+  const [listingSearch,setListingSearch] = useState('')
+  const [listingCategory,setListingCategory] = useState('')
+  const [month,setMonth] = useState(monthStart().slice(0,7))
+  const [editingEntry,setEditingEntry] = useState<Entry|null>(null)
+  const [editingGoal,setEditingGoal] = useState<{id:string;title:string;purpose:string;target_amount_kes:number;target_date:string|null;family:boolean}|null>(null)
 
   const load = useCallback(async () => {
     if (!supabase) return
     setBusy(true); setError('')
-    const [entries,goals,family,services,offers,housing,opportunities,announcements,listings,tickets,savedRows] = await Promise.all([
-      supabase.from('member_budget_entries').select('id,entry_type,entry_date,category,description,amount_kes').eq('entry_month',monthStart()).order('entry_date',{ascending:false}),
+    const [entries,goals,family,services,offers,housing,opportunities,announcements,listings,tickets,savedRows,counties] = await Promise.all([
+      supabase.from('member_budget_entries').select('id,entry_type,entry_date,category,description,amount_kes').eq('entry_month',`${month}-01`).order('entry_date',{ascending:false}),
       supabase.from('member_savings_goals').select('id,title,purpose,target_amount_kes,target_date').eq('status','ACTIVE').order('target_date',{ascending:true}),
       supabase.from('member_family_goals').select('id,title,goal_type,target_amount_kes,target_date').order('target_date',{ascending:true}),
       supabase.from('verified_service_providers').select('id,name,provider_type,description,website_url,public_phone,town,county_id').eq('status','VERIFIED').order('name').limit(40),
@@ -43,38 +50,53 @@ export default function MemberLifeHub({session,memberId}:{session:Session;member
       supabase.from('member_marketplace_listings').select('id,title,category,description,price_kes,town,status').eq('status','PUBLISHED').order('created_at',{ascending:false}).limit(30),
       supabase.from('member_support_tickets').select('id,subject,status,created_at').order('created_at',{ascending:false}).limit(10),
       supabase.from('member_opportunity_saves').select('opportunity_id'),
+      supabase.from('counties').select('id,name').eq('active',true).order('name'),
     ])
     const resultErrors = [entries.error,goals.error,family.error,services.error,offers.error,housing.error,opportunities.error,announcements.error,listings.error,tickets.error,savedRows.error].filter(Boolean)
     if (resultErrors.length) setError('Some life-services data is unavailable. Confirm the latest Supabase migrations are applied, then refresh.')
-    setData({entries:(entries.data??[]) as Entry[],goals:(goals.data??[]) as Goal[],familyGoals:(family.data??[]) as Goal[],services:(services.data??[]) as DirectoryRow[],offers:(offers.data??[]) as Offer[],housing:(housing.data??[]).map((row)=>({id:row.id,name:row.title,description:row.description,website_url:row.contact_url,public_phone:row.contact_phone,town:row.town,county_id:row.county_id})) as DirectoryRow[],opportunities:(opportunities.data??[]) as Opportunity[],announcements:(announcements.data??[]) as Announcement[],listings:(listings.data??[]) as Listing[],tickets:(tickets.data??[]) as LifeData['tickets']})
+    setData({entries:(entries.data??[]) as Entry[],goals:(goals.data??[]) as Goal[],familyGoals:(family.data??[]) as Goal[],services:(services.data??[]) as DirectoryRow[],offers:(offers.data??[]) as Offer[],housing:(housing.data??[]).map((row)=>({id:row.id,name:row.title,description:row.description,website_url:row.contact_url,public_phone:row.contact_phone,town:row.town,county_id:row.county_id})) as DirectoryRow[],opportunities:(opportunities.data??[]) as Opportunity[],announcements:(announcements.data??[]) as Announcement[],listings:(listings.data??[]) as Listing[],tickets:(tickets.data??[]) as LifeData['tickets'],counties:(counties.data??[]) as CountyOption[]})
     setSaved((savedRows.data??[]).map((row) => row.opportunity_id))
     setBusy(false)
-  },[])
+  },[month])
 
   useEffect(() => { void load() },[load])
+  useEffect(() => { if(module)setTab(module) },[module])
 
   async function saveBudget(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!supabase) return
-    const form = new FormData(event.currentTarget)
+    const formElement=event.currentTarget
+    const form = new FormData(formElement)
     setBusy(true); setError(''); setSuccess('')
-    const {error:insertError} = await supabase.from('member_budget_entries').insert({user_id:session.user.id,entry_month:monthStart(),entry_date:String(form.get('entry_date')),entry_type:String(form.get('entry_type')),category:String(form.get('category')).trim(),description:String(form.get('description')||'').trim()||null,amount_kes:Number(form.get('amount_kes'))})
+    const entryDate=String(form.get('entry_date'))
+    const values={user_id:session.user.id,entry_month:`${entryDate.slice(0,7)}-01`,entry_date:entryDate,entry_type:String(form.get('entry_type')),category:String(form.get('category')).trim(),description:String(form.get('description')||'').trim()||null,amount_kes:Number(form.get('amount_kes'))}
+    const {error:insertError} = editingEntry
+      ? await supabase.from('member_budget_entries').update(values).eq('id',editingEntry.id).eq('user_id',session.user.id)
+      : await supabase.from('member_budget_entries').insert(values)
     setBusy(false)
     if (insertError) { setError('This planner entry could not be saved. Check the amount and try again.'); return }
-    event.currentTarget.reset(); setSuccess('Personal planner entry saved. This is not a cooperative ledger transaction.'); await load()
+    formElement.reset(); setEditingEntry(null); setSuccess('Personal planner entry saved. This is not a cooperative ledger transaction.'); await load()
   }
 
   async function saveGoal(event:FormEvent<HTMLFormElement>,familyGoal=false) {
     event.preventDefault(); if (!supabase) return
-    const form = new FormData(event.currentTarget); setBusy(true); setError(''); setSuccess('')
+    const formElement=event.currentTarget
+    const form = new FormData(formElement); setBusy(true); setError(''); setSuccess('')
     const common = {user_id:session.user.id,title:String(form.get('title')).trim(),target_amount_kes:Number(form.get('target_amount_kes')),target_date:String(form.get('target_date')||'')||null}
-    const insertResult = familyGoal
-      ? await supabase.from('member_family_goals').insert({...common,goal_type:String(form.get('purpose'))})
-      : await supabase.from('member_savings_goals').insert({...common,purpose:String(form.get('purpose'))})
-    const {error:insertError} = insertResult
+    const purpose=String(form.get('purpose'))
+    const insertError=familyGoal
+      ? (editingGoal?.family===familyGoal
+        ? (await supabase.from('member_family_goals').update({...common,goal_type:purpose}).eq('id',editingGoal.id).eq('user_id',session.user.id)).error
+        : (await supabase.from('member_family_goals').insert({...common,goal_type:purpose})).error)
+      : (editingGoal?.family===familyGoal
+        ? (await supabase.from('member_savings_goals').update({...common,purpose}).eq('id',editingGoal.id).eq('user_id',session.user.id)).error
+        : (await supabase.from('member_savings_goals').insert({...common,purpose})).error)
     setBusy(false)
     if (insertError) { setError('The goal could not be saved. Check the amount and try again.'); return }
-    event.currentTarget.reset(); setSuccess('Your private goal has been saved.'); await load()
+    formElement.reset(); setEditingGoal(null); setSuccess('Your private goal has been saved.'); await load()
   }
+
+  async function removeEntry(entry:Entry){if(!supabase||!confirm('Delete this personal budget entry? This cannot be undone.'))return;setBusy(true);const {error:removeError}=await supabase.from('member_budget_entries').delete().eq('id',entry.id).eq('user_id',session.user.id);setBusy(false);if(removeError)setError('The entry could not be deleted.');else{setSuccess('Personal budget entry deleted.');await load()}}
+  async function removeGoal(goal:{id:string;family:boolean}){if(!supabase||!confirm('Delete this personal goal? This cannot be undone.'))return;setBusy(true);const table=goal.family?'member_family_goals':'member_savings_goals';const {error:removeError}=await supabase.from(table).delete().eq('id',goal.id).eq('user_id',session.user.id);setBusy(false);if(removeError)setError('The goal could not be deleted.');else{setSuccess('Private goal deleted.');setEditingGoal(null);await load()}}
 
   async function createTicket(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!supabase) return
@@ -112,12 +134,22 @@ export default function MemberLifeHub({session,memberId}:{session:Session;member
   const income = data.entries.filter((entry) => entry.entry_type==='INCOME').reduce((sum,entry)=>sum+Number(entry.amount_kes),0)
   const expenses = data.entries.filter((entry) => entry.entry_type==='EXPENSE').reduce((sum,entry)=>sum+Number(entry.amount_kes),0)
   const visibleServices = data.services.filter((item) => !serviceFilter || item.provider_type===serviceFilter)
+  const visibleListings = data.listings.filter((item) => (!listingCategory || item.category===listingCategory) && (!listingSearch || `${item.title} ${item.description} ${item.town}`.toLowerCase().includes(listingSearch.toLowerCase())))
+
+  if(module==='planner') return <section className="life-hub life-module"><div className="life-module-head"><div><span className="member-eyebrow">PRIVATE PLANNING</span><h2>Monthly budget planner</h2><p>Personal entries help with planning. They are not verified income or cooperative transactions.</p></div><label>Month<input type="month" value={month} onChange={event=>setMonth(event.target.value)}/></label><button className="life-reload" onClick={()=>void load()} disabled={busy}><RefreshCw size={14}/> Refresh</button></div>{(error||success)&&<div className={error?'life-message life-error':'life-message life-success'} role="status">{error||success}</div>}<div className="life-module-grid"><section className="life-panel"><div className="life-budget-totals"><div><small>Income entered</small><strong>{cash(income)}</strong></div><div><small>Expenses entered</small><strong>{cash(expenses)}</strong></div><div><small>Planned balance</small><strong>{cash(income-expenses)}</strong></div></div><form key={editingEntry?.id??'new-entry'} className="life-form" onSubmit={saveBudget}><label>Entry type<select name="entry_type" defaultValue={editingEntry?.entry_type??'EXPENSE'}><option value="EXPENSE">Expense</option><option value="INCOME">Income</option></select></label><label>Category<input name="category" defaultValue={editingEntry?.category??''} placeholder="Food, rent, salary" maxLength={60} required/></label><div className="life-form-row"><label>Amount (KES)<input name="amount_kes" type="number" min="1" step="0.01" defaultValue={editingEntry?.amount_kes??''} required/></label><label>Date<input name="entry_date" type="date" defaultValue={editingEntry?.entry_date??today()} required/></label></div><label>Note (optional)<input name="description" defaultValue={editingEntry?.description??''} maxLength={240}/></label><div className="life-form-actions"><button className="life-action" disabled={busy}><Plus size={15}/>{editingEntry?'Save changes':'Add planner entry'}</button>{editingEntry&&<button type="button" className="life-reload" onClick={()=>setEditingEntry(null)}><X size={15}/> Cancel</button>}</div></form></section><section className="life-panel"><h3>{new Date(`${month}-01T12:00:00`).toLocaleDateString('en-KE',{month:'long',year:'numeric'})}</h3><div className="life-record-list">{data.entries.map(entry=><article key={entry.id}><span className={entry.entry_type==='INCOME'?'income-mark':'expense-mark'}>{entry.entry_type==='INCOME'?'+':'−'}</span><div><strong>{entry.category}</strong><small>{entry.entry_date}{entry.description?` · ${entry.description}`:''}</small></div><b>{cash(entry.amount_kes)}</b><div className="life-row-actions"><button aria-label={`Edit ${entry.category}`} onClick={()=>setEditingEntry(entry)}><Pencil size={15}/></button><button aria-label={`Delete ${entry.category}`} onClick={()=>void removeEntry(entry)}><Trash2 size={15}/></button></div></article>)}{!data.entries.length&&<p className="life-empty">No personal entries for this month.</p>}</div></section></div></section>
+
+  if(module==='savings'||module==='family-goals'){
+    const familyGoal=module==='family-goals'
+    const goals=familyGoal?data.familyGoals:data.goals
+    const edit=editingGoal?.family===familyGoal?editingGoal:null
+    return <section className="life-hub life-module"><div className="life-module-head"><div><span className="member-eyebrow">PRIVATE PLANNING</span><h2>{familyGoal?'Family goals':'Personal savings goals'}</h2><p>{familyGoal?'Private household goals; no money is moved by this planner.':'Personal savings targets are separate from cooperative savings records.'}</p></div><button className="life-reload" onClick={()=>void load()} disabled={busy}><RefreshCw size={14}/> Refresh</button></div>{(error||success)&&<div className={error?'life-message life-error':'life-message life-success'} role="status">{error||success}</div>}<div className="life-module-grid"><section className="life-panel"><h3>{edit?'Edit goal':'Create a goal'}</h3><form key={edit?.id??`${module}-new`} className="life-form" onSubmit={event=>void saveGoal(event,familyGoal)}><label>Goal name<input name="title" defaultValue={edit?.title??''} placeholder={familyGoal?'School term plan':'Emergency fund'} maxLength={100} required/></label><div className="life-form-row"><label>{familyGoal?'Goal type':'Purpose'}<select name="purpose" defaultValue={edit?.purpose??(familyGoal?'EDUCATION':'EMERGENCY')}>{(familyGoal?['EDUCATION','HOUSING','EMERGENCY','HOUSEHOLD','OTHER']:['EMERGENCY','SCHOOL_FEES','RENT','BUSINESS','FAMILY','OTHER']).map(type=><option key={type} value={type}>{label(type)}</option>)}</select></label><label>Target (KES)<input name="target_amount_kes" type="number" min="1" step="0.01" defaultValue={edit?.target_amount_kes??''} required/></label></div><label>Target date (optional)<input name="target_date" type="date" defaultValue={edit?.target_date??''}/></label><div className="life-form-actions"><button className="life-action" disabled={busy}><Plus size={15}/>{edit?'Save changes':'Create goal'}</button>{edit&&<button type="button" className="life-reload" onClick={()=>setEditingGoal(null)}><X size={15}/> Cancel</button>}</div></form></section><section className="life-panel"><h3>Your goals</h3><div className="life-record-list">{goals.map(goal=><article key={goal.id}><span className="goal-mark"><Target size={15}/></span><div><strong>{goal.title}</strong><small>{label(familyGoal?(goal.goal_type??'OTHER'):(goal.purpose??'OTHER'))}{goal.target_date?` · by ${goal.target_date}`:''}</small></div><b>{cash(goal.target_amount_kes)}</b><div className="life-row-actions"><button aria-label={`Edit ${goal.title}`} onClick={()=>setEditingGoal({id:goal.id,title:goal.title,purpose:familyGoal?(goal.goal_type??'OTHER'):(goal.purpose??'OTHER'),target_amount_kes:goal.target_amount_kes,target_date:goal.target_date??null,family:familyGoal})}><Pencil size={15}/></button><button aria-label={`Delete ${goal.title}`} onClick={()=>void removeGoal({id:goal.id,family:familyGoal})}><Trash2 size={15}/></button></div></article>)}{!goals.length&&<p className="life-empty">No goals yet. Add a private goal when you are ready.</p>}</div></section></div></section>
+  }
 
   return <section className="life-hub">
     <div className="life-head"><div><span className="member-eyebrow">MY LIFE & BENEFITS</span><h2>Everyday value, built together.</h2><p>Private planning tools and verified community services. Provider listings and offers appear only after cooperative verification.</p></div><button className="life-reload" onClick={()=>void load()} disabled={busy}><RefreshCw size={14}/> Refresh</button></div>
-    <nav className="life-tabs" aria-label="My Life and Benefits">{[
+    {!module&&<nav className="life-tabs" aria-label="My Life and Benefits">{[
       ['planner','Planner',<Wallet size={15}/>],['services','Services & offers',<HeartPulse size={15}/>],['opportunities','Opportunities',<BriefcaseBusiness size={15}/>],['marketplace','Marketplace',<ShoppingBag size={15}/>],['community','Community',<Megaphone size={15}/>],['help','Help centre',<LifeBuoy size={15}/>],
-    ].map(([key,name,icon])=><button key={String(key)} className={tab===key?'active':''} onClick={()=>setTab(key as typeof tab)}>{icon}{name}</button>)}</nav>
+    ].map(([key,name,icon])=><button key={String(key)} className={tab===key?'active':''} onClick={()=>setTab(key as LifeTab)}>{icon}{name}</button>)}</nav>}
     {(error||success)&&<div className={error?'life-message life-error':'life-message life-success'} role="status">{error||success}</div>}
 
     {tab==='planner'&&<div className="life-grid">
@@ -130,7 +162,7 @@ export default function MemberLifeHub({session,memberId}:{session:Session;member
 
     {tab==='opportunities'&&<section className="life-panel"><div className="life-panel-title"><span><BriefcaseBusiness size={17}/></span><div><h3>Jobs, learning and opportunities</h3><small>Verified opportunities published by authorized reviewers</small></div></div><div className="life-opportunity-list">{data.opportunities.map((item)=><article key={item.id}><span className="opportunity-kind">{label(item.opportunity_type)}</span><div><h4>{item.title}</h4><small>{item.organization_name}{item.deadline?` · Deadline ${new Date(`${item.deadline}T00:00:00`).toLocaleDateString('en-KE')}`:''}</small><p>{item.description}</p><p className="opportunity-eligibility"><b>Eligibility:</b> {item.eligibility}</p><div className="opportunity-actions"><button onClick={()=>void saveOpportunity(item.id)} disabled={busy}>{saved.includes(item.id)?<Check size={14}/>:<Plus size={14}/>} {saved.includes(item.id)?'Saved':'Save opportunity'}</button>{item.application_url&&<a href={item.application_url} target="_blank" rel="noreferrer">Go to application <ExternalLink size={13}/></a>}</div></div></article>)}{!data.opportunities.length&&<p className="life-empty">No verified jobs, scholarships, bursaries or training programmes have been published yet.</p>}</div></section>}
 
-    {tab==='marketplace'&&<div className="life-grid life-market-grid"><section className="life-panel"><div className="life-panel-title"><span><ShoppingBag size={17}/></span><div><h3>Member marketplace</h3><small>Listings are reviewed before anyone can see them.</small></div></div><div className="life-directory-list">{data.listings.map((item)=><article key={item.id}><span className="directory-icon"><ShoppingBag size={18}/></span><div><strong>{item.title}</strong><small>{label(item.category)} · {item.town}</small><p>{item.description}</p>{item.price_kes!==null&&<b>{cash(item.price_kes)}</b>}</div></article>)}{!data.listings.length&&<p className="life-empty">No approved member listings are available yet.</p>}</div></section><section className="life-panel"><div className="life-panel-title"><span><Plus size={17}/></span><div><h3>Submit a business listing</h3><small>Available to approved members. Your listing stays private until review.</small></div></div>{memberId?<form className="life-form" onSubmit={createListing}><label>Product or service<input name="title" maxLength={120} required/></label><label>Category<input name="category" maxLength={80} required/></label><label>Description<textarea name="description" rows={4} minLength={10} maxLength={2000} required/></label><div className="life-form-row"><label>Price (KES, optional)<input name="price_kes" type="number" min="0" step="0.01"/></label><label>Contact phone<input name="contact_phone" type="tel" required/></label></div><div className="life-form-row"><label>County ID<input name="county_id" placeholder="Provided after county directory setup" required/></label><label>Town<input name="town" maxLength={100} required/></label></div><label className="life-consent"><input type="checkbox" name="consent" required/><span>I consent to the cooperative publishing my contact number if this listing is approved.</span></label><button className="life-action" disabled={busy}><Plus size={15}/> Submit for review</button></form>:<p className="life-empty">Approved membership is required to submit a marketplace listing.</p>}</section></div>}
+    {tab==='marketplace'&&<div className="life-grid life-market-grid"><section className="life-panel"><div className="life-panel-title"><span><ShoppingBag size={17}/></span><div><h3>Member marketplace</h3><small>Listings are reviewed before anyone can see them.</small></div></div><div className="life-market-filters"><label>Search listings<input type="search" value={listingSearch} onChange={(event)=>setListingSearch(event.target.value)} placeholder="Business, service or town"/></label><label>Category<select value={listingCategory} onChange={(event)=>setListingCategory(event.target.value)}><option value="">All categories</option>{Array.from(new Set(data.listings.map(item=>item.category))).sort().map(category=><option key={category} value={category}>{label(category)}</option>)}</select></label></div><div className="life-directory-list">{visibleListings.map((item)=><article key={item.id}><span className="directory-icon"><ShoppingBag size={18}/></span><div><strong>{item.title}</strong><small>{label(item.category)} · {item.town}</small><p>{item.description}</p>{item.price_kes!==null&&<b>{cash(item.price_kes)}</b>}</div></article>)}{!visibleListings.length&&<p className="life-empty">No listings match this search. Approved listings will appear here after cooperative review.</p>}</div></section><section className="life-panel"><div className="life-panel-title"><span><Plus size={17}/></span><div><h3>Submit a business listing</h3><small>Available to approved members. Your listing stays private until review.</small></div></div>{memberId?<form className="life-form" onSubmit={createListing}><label>Product or service<input name="title" maxLength={120} required/></label><label>Category<input name="category" maxLength={80} required/></label><label>Description<textarea name="description" rows={4} minLength={10} maxLength={2000} required/></label><div className="life-form-row"><label>Price (KES, optional)<input name="price_kes" type="number" min="0" step="0.01"/></label><label>Contact phone<input name="contact_phone" type="tel" required/></label></div><div className="life-form-row"><label>County<select name="county_id" required defaultValue=""><option value="">Choose county</option>{data.counties.map(county=><option key={county.id} value={county.id}>{county.name}</option>)}</select></label><label>Town<input name="town" maxLength={100} required/></label></div><label className="life-consent"><input type="checkbox" name="consent" required/><span>I consent to the cooperative publishing my contact number if this listing is approved.</span></label><button className="life-action" disabled={busy}><Plus size={15}/> Submit for review</button></form>:<p className="life-empty">Approved membership is required to submit a marketplace listing.</p>}</section></div>}
 
     {tab==='community'&&<section className="life-panel"><div className="life-panel-title"><span><Megaphone size={17}/></span><div><h3>Cooperative announcements</h3><small>Current updates published by the cooperative</small></div></div>{data.announcements.map((item)=><article className="life-announcement" key={item.id}><CalendarDays size={16}/><div><strong>{item.title}</strong><p>{item.body}</p><small>{new Date(item.published_at).toLocaleDateString('en-KE')}</small></div></article>)}{!data.announcements.length&&<p className="life-empty">No current announcements yet.</p>}<div className="life-governance-note">Digital voting and member polls will appear only after the cooperative enables them under its approved governance rules.</div></section>}
 

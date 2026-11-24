@@ -20,6 +20,7 @@ export default function SuperAdminControls() {
   const [auditRows,setAuditRows]=useState<AuditRow[]>([])
   const [dashboard, setDashboard] = useState<Dashboard>(emptyDashboard)
   const [membershipApprovalRole,setMembershipApprovalRole]=useState('')
+  const [policy,setPolicy]=useState({registration_fee_kes:'500',monthly_contribution_kes:'300',loan_minimum_savings_kes:'2000',loan_minimum_membership_months:'2'})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -38,11 +39,11 @@ export default function SuperAdminControls() {
   const refresh = useCallback(async () => {
     if (!supabase) return
     setBusy(true); setError('')
-    const [summary, regionResult, treeResult, requestResult, staffResult, approvalRoleResult,auditResult] = await Promise.all([
+    const [summary, regionResult, treeResult, requestResult, staffResult, approvalRoleResult,auditResult,policyResult] = await Promise.all([
       supabase.rpc('get_super_admin_dashboard'), supabase.rpc('get_admin_regions'), supabase.rpc('get_admin_location_tree'),
-      supabase.rpc('get_pending_staff_access_requests'), supabase.rpc('get_staff_directory'),supabase.rpc('get_membership_final_approval_role'),supabase.rpc('get_recent_admin_audit',{p_limit:100}),
+      supabase.rpc('get_pending_staff_access_requests'), supabase.rpc('get_staff_directory'),supabase.rpc('get_membership_final_approval_role'),supabase.rpc('get_recent_admin_audit',{p_limit:100}),supabase.rpc('get_cooperative_policy_settings'),
     ])
-    const failed = [summary, regionResult, treeResult, requestResult, staffResult,approvalRoleResult,auditResult].find((result) => result.error)
+    const failed = [summary, regionResult, treeResult, requestResult, staffResult,approvalRoleResult,auditResult,policyResult].find((result) => result.error)
     if (failed?.error) setError(failed.error.message)
     else {
       setDashboard((summary.data ?? emptyDashboard) as Dashboard)
@@ -53,6 +54,8 @@ export default function SuperAdminControls() {
       setStaff((staffResult.data ?? []) as StaffRecord[])
       setMembershipApprovalRole((approvalRoleResult.data as string|null)??'')
       setAuditRows((auditResult.data??[]) as AuditRow[])
+      const configured=(policyResult.data??{}) as Record<string,number|string>
+      setPolicy({registration_fee_kes:String(configured.registration_fee_kes??''),monthly_contribution_kes:String(configured.monthly_contribution_kes??''),loan_minimum_savings_kes:String(configured.loan_minimum_savings_kes??''),loan_minimum_membership_months:String(configured.loan_minimum_membership_months??'')})
       setCountyRegion((current) => current || rawRegions.find((item) => item.active)?.region_id || '')
     }
     setBusy(false)
@@ -110,13 +113,28 @@ export default function SuperAdminControls() {
     setBusy(false)
   }
 
+  async function saveCooperativePolicy(event:FormEvent<HTMLFormElement>){
+    event.preventDefault();if(!supabase)return
+    setBusy(true);setError('');setMessage('')
+    const {error:settingError}=await supabase.rpc('set_cooperative_policy_settings',{
+      p_registration_fee_kes:Number(policy.registration_fee_kes),
+      p_monthly_contribution_kes:Number(policy.monthly_contribution_kes),
+      p_loan_minimum_savings_kes:Number(policy.loan_minimum_savings_kes),
+      p_loan_minimum_membership_months:Number(policy.loan_minimum_membership_months),
+    })
+    if(settingError)setError(settingError.message)
+    else{setMessage('Cooperative financial policy saved and added to the audit log.');await refresh()}
+    setBusy(false)
+  }
+
   return <div className="staff-governance">
     <section className="staff-governance-summary"><div className="staff-governance-heading"><div><div className="staff-kicker">ORGANIZATION MANAGEMENT</div><h2>Administration</h2></div><button className="staff-refresh" onClick={() => void refresh()} disabled={busy}><RefreshCw size={15}/> Refresh</button></div>
       <div className="staff-governance-metrics">{[
-        ['Registered accounts',dashboard.registered_accounts],['Approved members',dashboard.active_members],['Pending applications',dashboard.pending_applications],['Active regions',dashboard.active_regions],['Staff requests',dashboard.pending_staff_requests],['Open support cases',dashboard.open_support_cases],
+        ['Approved members',dashboard.active_members],['Pending applications',dashboard.pending_applications],['Active regions',dashboard.active_regions],['Staff requests',dashboard.pending_staff_requests],
       ].map(([label,value])=><article key={String(label)}><small>{label}</small><strong>{Number(value).toLocaleString('en-KE')}</strong></article>)}</div>
     </section>
     {error && <p className="staff-error" role="alert">{error}</p>}{message && <p className="staff-success" role="status">{message}</p>}
+    <section className="staff-control-section"><div className="staff-control-title"><CircleDollarSign size={18}/><div><h2>Cooperative financial policy</h2><p>Initial values are editable. Interest rates, loan caps, penalties and approval limits stay unset until management configures them.</p></div></div><form className="staff-workflow-form staff-inline-form" onSubmit={saveCooperativePolicy}><label>One-time registration fee (KES)<input type="number" min="0.01" max="10000000" step="0.01" value={policy.registration_fee_kes} onChange={(event)=>setPolicy({...policy,registration_fee_kes:event.target.value})} required/></label><label>Monthly contribution (KES)<input type="number" min="0.01" max="10000000" step="0.01" value={policy.monthly_contribution_kes} onChange={(event)=>setPolicy({...policy,monthly_contribution_kes:event.target.value})} required/></label><label>Minimum savings for loan request (KES)<input type="number" min="0" max="1000000000" step="0.01" value={policy.loan_minimum_savings_kes} onChange={(event)=>setPolicy({...policy,loan_minimum_savings_kes:event.target.value})} required/></label><label>Minimum membership period (months)<input type="number" min="0" max="120" step="1" value={policy.loan_minimum_membership_months} onChange={(event)=>setPolicy({...policy,loan_minimum_membership_months:event.target.value})} required/></label><button className="staff-primary" disabled={busy}>Save financial policy</button></form></section>
 
     <section className="staff-control-section"><div className="staff-control-title"><ShieldCheck size={18}/><div><h2>Membership approval policy</h2><p>Final membership decisions stay disabled until management selects an approved role. This setting does not set or change any financial authorization policy.</p></div></div><form className="staff-workflow-form staff-inline-form staff-policy-form" onSubmit={saveMembershipApprovalRole}><label>Final membership approver role<select value={membershipApprovalRole} onChange={(event)=>setMembershipApprovalRole(event.target.value)}><option value="">Not configured — final decisions disabled</option><option value="MEMBERSHIP_OFFICER">Membership Officer</option><option value="REGIONAL_ADMIN">Regional Admin</option><option value="SUPER_ADMIN">Super Admin</option></select></label><button className="staff-primary" disabled={busy}>Save approval policy</button></form></section>
 

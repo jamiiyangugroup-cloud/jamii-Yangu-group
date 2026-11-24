@@ -8,7 +8,7 @@ type Report = {
   duplicate_count: number; provider_reference: string | null; notes: string; status: string
   submitted_email?: string; submitted_at: string; review_note?: string | null
 }
-const money = (value: number | null) => value == null ? 'Not provided' : `KES ${Number(value).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2})}`
+const money = (value: number | null) => value == null ? 'Not provided' : `KSh ${Number(value).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2})}`
 
 export default function FinanceReconciliation({ roleKey, regionId, regionName }: { roleKey: string; regionId: string | null; regionName: string | null }) {
   const isGeneral = roleKey === 'SUPER_FINANCE'

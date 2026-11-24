@@ -20,9 +20,14 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
   const [complete, setComplete] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState('')
+  const [registrationFee, setRegistrationFee] = useState<number|null>(null)
 
   useEffect(() => {
     if (!supabase) return
+    void supabase.rpc('get_membership_application_policy').then(({data}) => {
+      const policy = data as {registration_fee_kes?:number|null}|null
+      setRegistrationFee(typeof policy?.registration_fee_kes === 'number' ? policy.registration_fee_kes : null)
+    })
     if (new URLSearchParams(window.location.search).get('mode') === 'recovery' || window.location.hash.includes('type=recovery')) setAuthMode('update')
     void supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, next) => {
@@ -68,7 +73,11 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
       } else if (authMode === 'signin') {
         const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password: String(form.get('password') ?? '') })
         if (authError) throw authError
-        if (data.session) window.location.assign('/member')
+        if (data.session) {
+          const requestedReturn = new URLSearchParams(window.location.search).get('returnTo')
+          const cameFromMemberApp = document.referrer.startsWith(`${window.location.origin}/apps/member`)
+          window.location.assign(requestedReturn === '/apps/member' || cameFromMemberApp ? '/apps/member' : '/member')
+        }
       } else if (authMode === 'reset') {
         const { error: authError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/?mode=recovery` })
         if (authError) throw authError
@@ -110,6 +119,7 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
       occupation: String(form.get('occupation') ?? '').trim(),
       next_of_kin_name: String(form.get('nextOfKinName') ?? '').trim(),
       next_of_kin_phone: String(form.get('nextOfKinPhone') ?? '').trim(),
+      registration_fee_kes: registrationFee,
       category_id: String(form.get('categoryId') ?? '') || null,
       terms_accepted: form.get('termsAccepted') === 'on',
       privacy_accepted: form.get('privacyAccepted') === 'on',
@@ -144,8 +154,8 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
           <label className="consent"><input type="checkbox" name="termsAccepted" required/><span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">membership terms</a>.</span></label>
           <label className="consent"><input type="checkbox" name="privacyAccepted" required/><span>I have read the <a href="/privacy.html" target="_blank" rel="noreferrer">privacy notice</a> and consent to processing my application details.</span></label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button-primary form-submit" disabled={busy || !session.user.email_confirmed_at || !counties.length}>{busy ? 'Submitting…' : 'Submit application'} {!busy && <ArrowRight size={16}/>}</button>
-          <p className="dialog-hint">This submits an application only. The KSh 300 fee is not charged here. Payment verification and membership approval are separate steps.</p>
+          <button className="button button-primary form-submit" disabled={busy || !session.user.email_confirmed_at || !counties.length || registrationFee===null}>{busy ? 'Submitting…' : 'Submit application'} {!busy && <ArrowRight size={16}/>}</button>
+          <p className="dialog-hint">The current registration fee is {registrationFee===null?'not configured':`KSh ${registrationFee.toLocaleString('en-KE')}`}. This form does not collect payment; finance verifies payment separately.</p>
         </form>
         <button className="footer-login" onClick={() => void supabase?.auth.signOut()}>Sign out</button>
       </> : <>
