@@ -88,3 +88,7 @@
   .chama-card{padding:15px}
 }
 @media(prefers-reduced-motion:reduce){.member-shell *,.staff-app *,.chama-app *{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* Keep account access and registration forms centered in each portal. */
+.member-shell .member-auth-gate{min-height:calc(100dvh - 136px);display:grid;place-items:center;padding:clamp(24px,6vh,68px) 18px}.member-shell .member-auth-gate>div{width:min(560px,100%);margin:0 auto;text-align:center}.member-shell .member-auth-gate>div .member-primary{width:min(280px,100%);margin:22px auto 0}.member-shell .member-auth-gate>div>p:last-child{margin-top:16px}
+.staff-app .staff-auth-layout{grid-template-columns:minmax(0,560px);justify-content:center;gap:24px}.staff-app .staff-auth-aside{text-align:center;padding:0}.staff-app .staff-assurance{justify-content:center}.staff-app .staff-auth-card{width:100%}
+.chama-app .chama-main{display:grid;justify-items:center}.chama-app .chama-heading{width:min(730px,100%)}.chama-app .chama-auth{width:min(460px,100%)}
