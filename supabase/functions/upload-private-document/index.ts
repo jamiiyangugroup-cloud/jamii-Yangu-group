@@ -82,6 +82,11 @@ Deno.serve(async (request) => {
     await adminClient.storage.from(bucket).remove([path])
     return Response.json({ error: 'Document metadata could not be saved.' }, { status: 500, headers })
   }
-  await adminClient.from('audit_logs').insert({ actor_user_id: user.id, action_key: 'document.upload', resource_type: 'private_document', resource_id: document.id, details: { category, bucket_id: bucket } })
+  const { error: auditError } = await adminClient.from('audit_logs').insert({ actor_user_id: user.id, action_key: 'document.upload', resource_type: 'private_document', resource_id: document.id, details: { category, bucket_id: bucket } })
+  if (auditError) {
+    await adminClient.from('private_documents').delete().eq('id', document.id)
+    await adminClient.storage.from(bucket).remove([path])
+    return Response.json({ error: 'Document upload could not be securely recorded.' }, { status: 503, headers })
+  }
   return Response.json(document, { status: 201, headers })
 })

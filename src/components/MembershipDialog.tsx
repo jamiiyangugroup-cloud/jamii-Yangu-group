@@ -168,6 +168,7 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
       </> : <>
         <div className="dialog-tabs"><button className={authMode==='signup'?'selected':''} onClick={() => {setAuthMode('signup');setError('');setMessage('')}}>Create account</button><button className={authMode==='signin'?'selected':''} onClick={() => {setAuthMode('signin');setError('');setMessage('')}}>Sign in</button></div>
         <div className="modal-heading"><div className="eyebrow"><span className="eyebrow-dot" /> EMAIL-VERIFIED ACCESS</div><h2 id="modal-title">{title}</h2><p>Supabase Auth secures your account. Administrative permissions are assigned through authorized cooperative processes.</p></div>
+        {authMode==='signup'&&<p className="member-group-signup-link">Registering as a Chama representative? <a href="/chama">Open the group workspace</a></p>}
         <form className="application-form" onSubmit={authenticate}>
           {authMode==='signup' && <>
             <h3>Personal information</h3>

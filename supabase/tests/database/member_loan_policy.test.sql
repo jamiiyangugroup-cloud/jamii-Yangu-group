@@ -1,6 +1,9 @@
 begin;
 select plan(7);
 
+insert into public.organization_settings(setting_key,setting_value) values('loan_minimum_verified_contribution_months','3'::jsonb)
+on conflict(setting_key) do update set setting_value=excluded.setting_value;
+
 select is((select setting_value #>> '{}' from public.organization_settings where setting_key='registration_fee_kes'),'500','registration fee uses the cooperative-provided starting policy');
 select is((select setting_value #>> '{}' from public.organization_settings where setting_key='monthly_contribution_kes'),'300','monthly contribution uses the cooperative-provided starting policy');
 select ok(not has_column_privilege('authenticated','public.loan_applications','member_id','INSERT'),'members cannot bypass server-side loan eligibility with a direct insert');
@@ -15,6 +18,14 @@ insert into public.membership_applications(id,user_id,full_legal_name,date_of_bi
 values('75000000-0000-0000-0000-000000000001','74000000-0000-0000-0000-000000000001','Loan Test Member','1990-01-01','0712345678','loan-member@example.test','72000000-0000-0000-0000-000000000001','73000000-0000-0000-0000-000000000001','Test address','Test work','Next of Kin','0723456789',500,true,true,now());
 insert into public.members(id,user_id,application_id,membership_number,county_id,sub_county_id,status,approved_by,approved_at)
 values('76000000-0000-0000-0000-000000000001','74000000-0000-0000-0000-000000000001','75000000-0000-0000-0000-000000000001','LOAN-TEST-001','72000000-0000-0000-0000-000000000001','73000000-0000-0000-0000-000000000001','ACTIVE','74000000-0000-0000-0000-000000000001',now()-interval '3 months');
+insert into public.payments(id,user_id,purpose,amount_kes,status) values
+('79000000-0000-0000-0000-000000000001','74000000-0000-0000-0000-000000000001','MONTHLY_CONTRIBUTION',100,'VERIFIED'),
+('79000000-0000-0000-0000-000000000002','74000000-0000-0000-0000-000000000001','MONTHLY_CONTRIBUTION',100,'VERIFIED'),
+('79000000-0000-0000-0000-000000000003','74000000-0000-0000-0000-000000000001','MONTHLY_CONTRIBUTION',100,'VERIFIED');
+insert into public.member_contributions(id,member_id,payment_id,contribution_month,amount_kes,status) values
+('79100000-0000-0000-0000-000000000001','76000000-0000-0000-0000-000000000001','79000000-0000-0000-0000-000000000001',(date_trunc('month',current_date)-interval '2 months')::date,100,'VERIFIED'),
+('79100000-0000-0000-0000-000000000002','76000000-0000-0000-0000-000000000001','79000000-0000-0000-0000-000000000002',(date_trunc('month',current_date)-interval '1 month')::date,100,'VERIFIED'),
+('79100000-0000-0000-0000-000000000003','76000000-0000-0000-0000-000000000001','79000000-0000-0000-0000-000000000003',date_trunc('month',current_date)::date,100,'VERIFIED');
 insert into public.member_savings(id,member_id,account_reference,status)
 values('77000000-0000-0000-0000-000000000001','76000000-0000-0000-0000-000000000001','LOAN-TEST-SAVINGS','ACTIVE');
 insert into public.savings_transactions(id,savings_account_id,transaction_type,amount_kes)
