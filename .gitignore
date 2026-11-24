@@ -8,3 +8,6 @@ backend/target/
 .vscode/
 tsconfig.tsbuildinfo
 .globe-*
+
+.vercel
+.env*
