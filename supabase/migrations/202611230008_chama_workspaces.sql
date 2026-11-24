@@ -8,7 +8,7 @@ create table public.chamas (
   registration_number text,
   contact_phone text not null check (contact_phone ~ '^[+]?[0-9 ()-]{9,20}$'),
   county_name text,
-  invite_code text not null unique default upper(encode(gen_random_bytes(12),'hex')),
+  invite_code text not null unique default upper(replace(gen_random_uuid()::text,'-','')),
   status text not null default 'ACTIVE' check (status in ('ACTIVE','SUSPENDED','CLOSED')),
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now(),

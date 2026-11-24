@@ -96,17 +96,18 @@ begin
  values(auth.uid(),lower(tg_op),tg_table_name,resource_key,'{}'::jsonb);
  if tg_op='DELETE' then return old; else return new; end if;
 end; $$;
-do $$ declare t text; begin
- foreach t in array array['user_profiles','membership_applications','members','employee_profiles','user_roles','administrative_assignments','payments','payment_transactions','member_contributions','savings_transactions','share_capital','welfare_funds','loan_applications','loans','loan_repayments','financial_assistance_applications','rent_assistance','school_fees_assistance','medical_assistance','business_financing_applications','investment_projects','investment_records','private_documents','document_verification','complaints','approval_records','journal_entries','journal_lines','organization_settings'] loop
-  execute format('create trigger audit_%I after insert or update or delete on public.%I for each row execute function public.audit_sensitive_write()',t,t);
- end loop;
-end $$;
 create table public.ledger_accounts(id uuid primary key default gen_random_uuid(), account_code text not null unique, name text not null, account_type text not null check(account_type in ('ASSET','LIABILITY','EQUITY','INCOME','EXPENSE')), active boolean not null default true, created_at timestamptz not null default now());
 create table public.journal_entries(id uuid primary key default gen_random_uuid(), reference text not null unique, source_type text not null, source_id uuid not null, description text not null, posted_by uuid references auth.users(id), posted_at timestamptz, reversed_entry_id uuid unique references public.journal_entries(id), created_at timestamptz not null default now());
 create table public.journal_lines(id uuid primary key default gen_random_uuid(), journal_entry_id uuid not null references public.journal_entries(id), account_id uuid not null references public.ledger_accounts(id), debit_kes numeric(16,2) not null default 0 check(debit_kes>=0), credit_kes numeric(16,2) not null default 0 check(credit_kes>=0), member_id uuid references public.members(id), check((debit_kes>0 and credit_kes=0) or (credit_kes>0 and debit_kes=0)));
 create index journal_lines_entry_idx on public.journal_lines(journal_entry_id);
 create table public.organization_settings(setting_key text primary key, setting_value jsonb not null, updated_by uuid references auth.users(id), updated_at timestamptz not null default now());
 insert into public.organization_settings(setting_key,setting_value) values ('registration_fee_kes','300'::jsonb),('monthly_contribution_kes','100'::jsonb),('assistance_eligibility_consecutive_months','6'::jsonb);
+
+do $$ declare t text; begin
+ foreach t in array array['user_profiles','membership_applications','members','employee_profiles','user_roles','administrative_assignments','payments','payment_transactions','member_contributions','savings_transactions','share_capital','welfare_funds','loan_applications','loans','loan_repayments','financial_assistance_applications','rent_assistance','school_fees_assistance','medical_assistance','business_financing_applications','investment_projects','investment_records','private_documents','document_verification','complaints','approval_records','journal_entries','journal_lines','organization_settings'] loop
+  execute format('create trigger audit_%I after insert or update or delete on public.%I for each row execute function public.audit_sensitive_write()',t,t);
+ end loop;
+end $$;
 
 create or replace function public.check_journal_balanced() returns trigger language plpgsql set search_path='' as $$
 declare entry_id uuid; d numeric(16,2); c numeric(16,2); n integer; posted timestamptz;
