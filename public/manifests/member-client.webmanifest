@@ -1,0 +1,14 @@
+{
+  "id": "/member",
+  "name": "Jamii Yangu Member Workspace",
+  "short_name": "Jamii Yangu",
+  "description": "Your membership and verified cooperative records.",
+  "start_url": "/member#dashboard",
+  "scope": "/member",
+  "display": "standalone",
+  "background_color": "#f5f7f5",
+  "theme_color": "#0750a2",
+  "icons": [
+    { "src": "/icons/member.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
