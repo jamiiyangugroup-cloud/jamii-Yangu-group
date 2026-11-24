@@ -8,10 +8,13 @@ const corsHeaders = (origin: string) => ({
 })
 const bucketFor = (category: string) => ({
   NATIONAL_ID_FRONT: 'identity-documents', NATIONAL_ID_BACK: 'identity-documents', PASSPORT: 'identity-documents',
-  PROFILE_PHOTO: 'member-kyc', PROOF_OF_RESIDENCE: 'member-kyc', MEMBERSHIP_SUPPORT: 'membership-documents',
+  PASSPORT_PHOTO: 'member-kyc', PROFILE_PHOTO: 'member-kyc', PROOF_OF_RESIDENCE: 'member-kyc', MEMBERSHIP_SUPPORT: 'membership-documents',
+  NEXT_OF_KIN_ID_FRONT: 'identity-documents', NEXT_OF_KIN_ID_BACK: 'identity-documents',
+  GUARANTOR_ID_FRONT: 'identity-documents', GUARANTOR_ID_BACK: 'identity-documents',
   LOAN_SUPPORT: 'loan-documents', RENT_SUPPORT: 'rent-documents', SCHOOL_FEES_SUPPORT: 'school-fees-documents',
   MEDICAL_SUPPORT: 'medical-documents', BUSINESS_SUPPORT: 'business-documents',
 } as Record<string, string>)[category]
+const thirdPartyCategories = new Set(['NEXT_OF_KIN_ID_FRONT','NEXT_OF_KIN_ID_BACK','GUARANTOR_ID_FRONT','GUARANTOR_ID_BACK'])
 
 function keyFromEnv(name: string, fallback?: string) {
   const raw = Deno.env.get(name)
@@ -51,12 +54,14 @@ Deno.serve(async (request) => {
   const form = await request.formData()
   const file = form.get('file')
   const category = String(form.get('category') ?? '')
+  const thirdPartyConsent = form.get('thirdPartyConsent') === 'true'
   const applicationId = String(form.get('applicationId') ?? '') || null
   const memberId = String(form.get('memberId') ?? '') || null
   const bucket = bucketFor(category)
   if (!(file instanceof File) || !bucket || Boolean(applicationId) === Boolean(memberId) || file.size < 1 || file.size > 10 * 1024 * 1024) {
     return Response.json({ error: 'Choose a supported document smaller than 10 MB and a valid application or member record.' }, { status: 400, headers })
   }
+  if (thirdPartyCategories.has(category) && !thirdPartyConsent) return Response.json({ error: 'Permission from the document owner is required.' }, { status: 400, headers })
 
   if (applicationId) {
     const { data } = await userClient.from('membership_applications').select('id').eq('id', applicationId).eq('user_id', user.id).maybeSingle()
@@ -69,6 +74,7 @@ Deno.serve(async (request) => {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const detected = sniff(bytes)
   if (!detected) return Response.json({ error: 'Only valid PDF, JPEG, and PNG documents are accepted.' }, { status: 415, headers })
+  if (category === 'PASSPORT_PHOTO' && detected.mime === 'application/pdf') return Response.json({ error: 'A passport-style photo must be a JPEG or PNG image.' }, { status: 415, headers })
   const adminClient = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } })
   const path = `${user.id}/${crypto.randomUUID()}.${detected.ext}`
   const { error: uploadError } = await adminClient.storage.from(bucket).upload(path, bytes, { contentType: detected.mime, upsert: false })
@@ -82,7 +88,7 @@ Deno.serve(async (request) => {
     await adminClient.storage.from(bucket).remove([path])
     return Response.json({ error: 'Document metadata could not be saved.' }, { status: 500, headers })
   }
-  const { error: auditError } = await adminClient.from('audit_logs').insert({ actor_user_id: user.id, action_key: 'document.upload', resource_type: 'private_document', resource_id: document.id, details: { category, bucket_id: bucket } })
+  const { error: auditError } = await adminClient.from('audit_logs').insert({ actor_user_id: user.id, action_key: 'document.upload', resource_type: 'private_document', resource_id: document.id, details: { category, bucket_id: bucket, third_party_consent: thirdPartyCategories.has(category) ? { confirmed: true, recorded_at: new Date().toISOString() } : null } })
   if (auditError) {
     await adminClient.from('private_documents').delete().eq('id', document.id)
     await adminClient.storage.from(bucket).remove([path])

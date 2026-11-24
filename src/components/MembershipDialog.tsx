@@ -4,7 +4,7 @@ import { ArrowRight, BadgeCheck, Eye, EyeOff, ShieldCheck, X } from 'lucide-reac
 import Logo from './Logo'
 import { supabase, supabaseConfigured } from '../lib/supabase'
 
-type Application = { id: string; status: string; created_at: string; registration_payment_status: string }
+type Application = { id: string; status: string; created_at: string; registration_payment_status: string; registration_fee_kes:number|null }
 type Location = { id: string; name: string }
 
 export default function MembershipDialog({ onClose, initialMode = 'signup' }: { onClose: () => void; initialMode?: 'signup' | 'signin' | 'update' }) {
@@ -22,12 +22,15 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
   const [showPassword, setShowPassword] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState('')
   const [registrationFee, setRegistrationFee] = useState<number|null>(null)
+  const [monthlyContribution, setMonthlyContribution] = useState<number|null>(null)
 
   useEffect(() => {
     if (!supabase) return
     void supabase.rpc('get_membership_application_policy').then(({data}) => {
       const policy = data as {registration_fee_kes?:number|null}|null
       setRegistrationFee(typeof policy?.registration_fee_kes === 'number' ? policy.registration_fee_kes : null)
+      const contribution = (data as {monthly_contribution_kes?:number|null}|null)?.monthly_contribution_kes
+      setMonthlyContribution(typeof contribution === 'number' ? contribution : null)
     })
     if (new URLSearchParams(window.location.search).get('mode') === 'recovery' || window.location.hash.includes('type=recovery')) setAuthMode('update')
     void supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -41,7 +44,7 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
   useEffect(() => {
     if (!supabase || !session) { setApplications([]); setApplicationsLoaded(false); return }
     setApplicationsLoaded(false)
-    void supabase.from('membership_applications').select('id,status,created_at,registration_payment_status')
+    void supabase.from('membership_applications').select('id,status,created_at,registration_payment_status,registration_fee_kes')
       .order('created_at', { ascending: false }).then(({ data, error: loadError }) => { if (!loadError) setApplications((data ?? []) as Application[]); setApplicationsLoaded(true) })
     void supabase.from('counties').select('id,name').eq('active', true).order('name')
       .then(({ data }) => setCounties((data ?? []) as Location[]))
@@ -106,7 +109,7 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
   async function submitApplication(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(''); setMessage('')
     if (!supabase || !session?.user.email_confirmed_at) { setError('Verify your email and sign in before submitting an application.'); setBusy(false); return }
-    const { data: existingApplications, error: lookupError } = await supabase.from('membership_applications').select('id,status,created_at,registration_payment_status').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(1)
+    const { data: existingApplications, error: lookupError } = await supabase.from('membership_applications').select('id,status,created_at,registration_payment_status,registration_fee_kes').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(1)
     if (lookupError) { setError('We could not check your existing membership applications. Refresh and try again.'); setBusy(false); return }
     if (existingApplications?.length) { setApplications(existingApplications as Application[]); setApplicationsLoaded(true); setError('A membership application already exists for your account. Check its status below.'); setBusy(false); return }
     if (!countyId || !subCounties.length) { setError('County and sub-county options are not configured yet. Please try again later.'); setBusy(false); return }
@@ -125,6 +128,9 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
       next_of_kin_name: String(form.get('nextOfKinName') ?? '').trim(),
       next_of_kin_phone: String(form.get('nextOfKinPhone') ?? '').trim(),
       registration_fee_kes: registrationFee,
+      monthly_contribution_agreed: true,
+      monthly_contribution_agreed_kes: monthlyContribution,
+      monthly_contribution_agreed_at: new Date().toISOString(),
       category_id: String(form.get('categoryId') ?? '') || null,
       terms_accepted: form.get('termsAccepted') === 'on',
       privacy_accepted: form.get('privacyAccepted') === 'on',
@@ -132,7 +138,7 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
     }
     const { error: insertError } = await supabase.from('membership_applications').insert(payload)
     if (insertError) setError('The application could not be submitted. Check that your email is verified and location information is complete.')
-    else { setComplete(true); void supabase.from('membership_applications').select('id,status,created_at,registration_payment_status').order('created_at', { ascending: false }).then(({ data }) => setApplications((data ?? []) as Application[])) }
+    else { setComplete(true); void supabase.from('membership_applications').select('id,status,created_at,registration_payment_status,registration_fee_kes').order('created_at', { ascending: false }).then(({ data }) => setApplications((data ?? []) as Application[])) }
     setBusy(false)
   }
 
@@ -144,9 +150,9 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
       {!supabaseConfigured && <div className="preview-notice setup-warning"><ShieldCheck size={18}/><span>Complete the form and checks now. Account creation, verification and sign-in will work once the Supabase project URL and publishable key are configured.</span></div>}
       {session && authMode !== 'update' ? <>
         <div className="modal-heading"><div className="eyebrow"><span className="eyebrow-dot" /> SECURE MEMBER ACCESS</div><h2 id="modal-title">Your Jamii Yangu account</h2><p>Signed in as {session.user.email}. Applications remain pending until payment and authorized review are complete.</p></div>
-        {complete && <div className="success-state compact-success"><span className="success-icon"><BadgeCheck/></span><strong>Application submitted.</strong><p>No payment was collected. The application will appear below once its saved record is loaded.</p></div>}
+        {complete && <div className="success-state compact-success"><span className="success-icon"><BadgeCheck/></span><strong>Application submitted.</strong><p>Your application is recorded. Registration fee due: KSh {registrationFee?.toLocaleString('en-KE')??'—'}. Payment is not yet verified; use the cooperative’s official instructions and wait for Finance confirmation.</p><a className="button button-primary form-submit" href="/member#applications">Track application <ArrowRight size={16}/></a></div>}
         <div className="application-list"><h3>My applications</h3>{applications.length ? applications.map((application) => <article key={application.id}><div><strong>{application.status.replace(/_/g,' ')}</strong><small>Submitted {new Date(application.created_at).toLocaleDateString()}</small></div><span>{application.registration_payment_status.replace(/_/g,' ')}</span></article>) : <p>No membership applications yet.</p>}</div>
-        {applicationsLoaded && applications.length > 0 && <p className="preview-notice">An application is already linked to your account. Follow its status above; you do not need to submit another one.</p>}
+        {applicationsLoaded && applications.length > 0 && <><p className="preview-notice">An application is already linked to your account. Follow its status above; you do not need to submit another one.</p>{applications.some(application=>application.registration_payment_status==='UNPAID')&&<div className="preview-notice"><strong>Registration fee due: KSh {applications.find(application=>application.registration_payment_status==='UNPAID')?.registration_fee_kes?.toLocaleString('en-KE')??registrationFee?.toLocaleString('en-KE')??'500'}.</strong><br/>The app does not have a configured M-Pesa payment prompt or payment destination. Contact member support for current official instructions. Your application remains unpaid until Finance verifies the payment.</div>}</>}
         {!applicationsLoaded && <p className="preview-notice">Checking for an existing membership application…</p>}
         {applicationsLoaded && applications.length === 0 && <form className="application-form" onSubmit={submitApplication}>
           <h3>Membership application</h3>
@@ -160,9 +166,10 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
           <div className="form-row"><label>Next of kin name<input name="nextOfKinName" required /></label><label>Next of kin phone<input name="nextOfKinPhone" type="tel" placeholder="+254 7XX XXX XXX" required /></label></div>
           <label className="consent"><input type="checkbox" name="termsAccepted" required/><span>I agree to the <a href="/terms.html" target="_blank" rel="noreferrer">membership terms</a>.</span></label>
           <label className="consent"><input type="checkbox" name="privacyAccepted" required/><span>I have read the <a href="/privacy.html" target="_blank" rel="noreferrer">privacy notice</a> and consent to processing my application details.</span></label>
+          <label className="consent"><input type="checkbox" name="monthlyContributionAgreement" required/><span>I agree to contribute KSh {monthlyContribution===null?'—':monthlyContribution.toLocaleString('en-KE')} monthly after membership approval. This contribution is separate from the one-time registration fee and from the KSh 2,000 personal savings balance required for loan requests.</span></label>
           {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button-primary form-submit" disabled={busy || !session.user.email_confirmed_at || !counties.length || registrationFee===null}>{busy ? 'Submitting…' : 'Submit application'} {!busy && <ArrowRight size={16}/>}</button>
-          <p className="dialog-hint">The current registration fee is {registrationFee===null?'not configured':`KSh ${registrationFee.toLocaleString('en-KE')}`}. This form does not collect payment; finance verifies payment separately.</p>
+          <button className="button button-primary form-submit" disabled={busy || !session.user.email_confirmed_at || !counties.length || registrationFee===null || monthlyContribution===null}>{busy ? 'Submitting…' : 'Submit application'} {!busy && <ArrowRight size={16}/>}</button>
+          <p className="dialog-hint">After submitting, KSh {registrationFee===null?'—':registrationFee.toLocaleString('en-KE')} registration fee will show as due. The app cannot send an M-Pesa prompt until the cooperative configures its payment service; Finance must verify payment before approval.</p>
         </form>}
         <button className="footer-login" onClick={() => void supabase?.auth.signOut()}>Sign out</button>
       </> : <>

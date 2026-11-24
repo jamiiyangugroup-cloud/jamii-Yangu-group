@@ -1,6 +1,6 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { ArrowRight, Banknote, Building2, FileText, HeartPulse, RefreshCw, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Banknote, Building2, Camera, ExternalLink, FileText, HeartPulse, RefreshCw, ShieldCheck, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 type Need='LOAN'|'RENT'|'MEDICAL'|'SCHOOL_FEES'|'BASIC_NEEDS'
@@ -9,6 +9,16 @@ type LoanApplication={id:string;amount_requested_kes:number;purpose:string;repay
 type Loan={id:string;principal_kes:number;status:string;created_at:string}
 type Assistance={id:string;assistance_type:string;arrangement:string;amount_requested_kes:number;status:string;created_at:string}
 type RequestRow={id:string;kind:string;amount:number;label:string;status:string;date:string}
+type KycDocument={id:string;category:string;status:string;created_at:string}
+const kycSlots=[
+  {category:'NATIONAL_ID_FRONT',label:'Your national ID, front',accept:'image/jpeg,image/png,application/pdf',thirdParty:false},
+  {category:'NATIONAL_ID_BACK',label:'Your national ID, back',accept:'image/jpeg,image/png,application/pdf',thirdParty:false},
+  {category:'PASSPORT_PHOTO',label:'Your passport-style photo',accept:'image/jpeg,image/png',thirdParty:false},
+  {category:'NEXT_OF_KIN_ID_FRONT',label:'Next of kin ID, front',accept:'image/jpeg,image/png,application/pdf',thirdParty:true},
+  {category:'NEXT_OF_KIN_ID_BACK',label:'Next of kin ID, back',accept:'image/jpeg,image/png,application/pdf',thirdParty:true},
+  {category:'GUARANTOR_ID_FRONT',label:'Guarantor ID, front',accept:'image/jpeg,image/png,application/pdf',thirdParty:true},
+  {category:'GUARANTOR_ID_BACK',label:'Guarantor ID, back',accept:'image/jpeg,image/png,application/pdf',thirdParty:true},
+] as const
 const cash=(amount:number)=>`KSh ${Number(amount||0).toLocaleString('en-KE',{minimumFractionDigits:2,maximumFractionDigits:2})}`
 const needs:{value:Need;label:string;description:string}[]=[
   {value:'LOAN',label:'Loan to me',description:'Request a recoverable loan paid to your M-Pesa or bank details.'},
@@ -29,6 +39,12 @@ export default function MemberLoans({session,memberId,supportEligible=null}:{ses
   const [loading,setLoading]=useState(true)
   const [error,setError]=useState('')
   const [message,setMessage]=useState('')
+  const [kycDocuments,setKycDocuments]=useState<KycDocument[]>([])
+  const [kycLoading,setKycLoading]=useState(false)
+  const [kycBusy,setKycBusy]=useState('')
+  const [kycError,setKycError]=useState('')
+  const [thirdPartyConsent,setThirdPartyConsent]=useState(false)
+  const [privateLinks,setPrivateLinks]=useState<Record<string,string>>({})
 
   const load=useCallback(async()=>{
     if(!supabase){setLoading(false);setEligibilityError('Secure member services are unavailable.');return}
@@ -48,6 +64,44 @@ export default function MemberLoans({session,memberId,supportEligible=null}:{ses
     setLoading(false)
   },[memberId])
   useEffect(()=>{void load()},[load])
+
+  const loadKycDocuments=useCallback(async()=>{
+    if(!supabase||!memberId){setKycDocuments([]);return}
+    setKycLoading(true);setKycError('')
+    const {data,error:documentsError}=await supabase.from('private_documents').select('id,category,status,created_at').eq('member_id',memberId).order('created_at',{ascending:false})
+    if(documentsError){setKycDocuments([]);setKycError('Your private document list is unavailable. Refresh or contact member support.')}
+    else setKycDocuments((data??[]) as KycDocument[])
+    setKycLoading(false)
+  },[memberId])
+  useEffect(()=>{void loadKycDocuments()},[loadKycDocuments])
+
+  async function uploadKycDocument(category:string,file:File,thirdParty:boolean){
+    if(!supabase||!memberId)return
+    if(file.size<1||file.size>10*1024*1024){setKycError('Choose a document smaller than 10 MB.');return}
+    if(thirdParty&&!thirdPartyConsent){setKycError('Confirm that the next of kin or guarantor gave permission before uploading their ID.');return}
+    const form=new FormData();form.append('file',file);form.append('category',category);form.append('memberId',memberId);form.append('thirdPartyConsent',String(thirdParty&&thirdPartyConsent))
+    setKycBusy(category);setKycError('');setPrivateLinks(current=>{const next={...current};delete next[category];return next})
+    const {error:uploadError}=await supabase.functions.invoke('upload-private-document',{body:form})
+    setKycBusy('')
+    if(uploadError){setKycError('The private upload could not be completed. Secure document intake may be unavailable; contact member support if this continues.');return}
+    setThirdPartyConsent(false);await loadKycDocuments()
+  }
+
+  async function handleKycFile(event:ChangeEvent<HTMLInputElement>,category:string,thirdParty:boolean){
+    const input=event.currentTarget,file=input.files?.[0]
+    if(!file)return
+    await uploadKycDocument(category,file,thirdParty)
+    input.value=''
+  }
+
+  async function preparePrivateLink(document:KycDocument){
+    if(!supabase)return
+    setKycBusy(`view-${document.id}`);setKycError('')
+    const {data,error:linkError}=await supabase.functions.invoke('create-document-download',{body:{documentId:document.id}})
+    setKycBusy('')
+    if(linkError||!data?.signedUrl){setKycError('A private document link could not be created. Refresh and try again.');return}
+    setPrivateLinks(current=>({...current,[document.category]:data.signedUrl}))
+  }
 
   const requestRows=useMemo<RequestRow[]>(()=>[
     ...applications.map(item=>({id:`loan-${item.id}`,kind:'LOAN',amount:item.amount_requested_kes,label:item.purpose,status:item.status,date:item.requested_at})),
@@ -79,6 +133,8 @@ export default function MemberLoans({session,memberId,supportEligible=null}:{ses
       p_income_source:need==='LOAN'?values('income_source'):null,
       p_next_of_kin_name:need==='LOAN'?values('next_of_kin_name'):null,
       p_next_of_kin_phone:need==='LOAN'?values('next_of_kin_phone'):null,
+      p_guarantor_name:need==='LOAN'?values('guarantor_name')||null:null,
+      p_guarantor_phone:need==='LOAN'?values('guarantor_phone')||null:null,
       p_payout_method:need==='LOAN'?values('payout_method'):null,
       p_payout_destination:need==='LOAN'?values('payout_destination'):null,
       p_recipient_name:need==='RENT'?values('landlord_name'):need==='MEDICAL'?values('provider_name'):need==='SCHOOL_FEES'?values('institution_name'):values('supplier_name'),
@@ -95,7 +151,7 @@ export default function MemberLoans({session,memberId,supportEligible=null}:{ses
 
   const selectedNeed=needs.find(item=>item.value===need)!
   return <div className="member-support-page">
-    <section className="member-section-card member-support-eligibility"><div className="member-section-heading"><div><span><ShieldCheck size={18}/></span><h2>Your eligibility</h2></div><button className="member-text-action" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={14}/> Refresh</button></div>
+    <section className="member-section-card member-support-eligibility"><div className="member-section-heading"><div><span><ShieldCheck size={18}/></span><h2>Your eligibility</h2></div><button className="member-text-action" onClick={()=>void load()} disabled={loading||busy}><RefreshCw size={14}/> Refresh</button></div><p className="member-section-intro">Loan requests open after three months of active membership, two consecutive verified KSh 300 monthly contributions, and at least KSh 2,000 in separately recorded savings. The KSh 500 registration fee and monthly contributions do not count toward that savings balance.</p>
       {loading?<p className="member-section-intro">Checking your verified member record…</p>:eligibility?<><div className="member-finance-summary"><div><small>Verified savings</small><strong>{cash(eligibility.savings_balance_kes)}</strong></div><div><small>Membership</small><strong>{eligibility.membership_months} months</strong></div><div><small>Verified contribution months</small><strong>{eligibility.qualifying_contribution_months??'Not checked'}</strong></div></div>{eligibility.reasons.length>0&&<ul className="member-eligibility-reasons">{eligibility.reasons.map(reason=><li key={reason}>{reason}</li>)}</ul>}{eligibility.eligible&&<p className="member-support-note">You meet the current loan application checks. Final amount and terms still need review.</p>}</>:<p className="member-support-error" role="status">{eligibilityError||'Loan checks are unavailable.'}</p>}
       <p className="member-support-note">Essential bill support: {supportEligible===true?'Your current member record meets the published contribution check.':supportEligible===false?'Your member record does not currently meet the published contribution check.': 'The support eligibility rule is not configured.'}</p>
     </section>
@@ -116,10 +172,20 @@ export default function MemberLoans({session,memberId,supportEligible=null}:{ses
         {need==='BASIC_NEEDS'&&<><label>Essential need<select name="service_category" required defaultValue=""><option value="" disabled>Choose a need</option><option value="FOOD">Food or groceries</option><option value="ELECTRICITY">Electricity tokens</option><option value="WATER">Water bill</option><option value="COOKING_GAS">Cooking gas</option><option value="TRANSPORT">Transport</option><option value="OTHER_ESSENTIAL">Other essential need</option></select></label><label>Supplier or payee name<input name="supplier_name" maxLength={180} required/></label><div className="member-support-row"><label>Supplier phone<input name="recipient_phone" type="tel" pattern="[+]?[0-9 ()-]{9,20}" required/></label><label>Payment due date<input name="due_date" type="date"/></label></div><label>Supplier payment details<input name="payment_details" maxLength={240} required/></label></>}
         <label>Amount requested (KES)<input name="amount" type="number" min="1" max="1000000000" step="0.01" required/></label>
         <label>{need==='LOAN'?'Explain why you need the loan':'Tell us about the bill or need'}<textarea name="reason" minLength={5} maxLength={1000} rows={4} required/></label>
-        {need==='LOAN'&&<><label>Requested repayment period (months)<input name="repayment_months" type="number" min="1" max="120" step="1" required/><small>Requested only. Final repayment terms are set during review.</small></label><label>Income source<input name="income_source" maxLength={160} required/></label><label>Next of kin name<input name="next_of_kin_name" defaultValue={session.user.user_metadata?.next_of_kin_name??''} minLength={2} maxLength={160} required/></label><label>Next of kin phone<input name="next_of_kin_phone" type="tel" pattern="[+]?[0-9 ()-]{9,20}" defaultValue={session.user.user_metadata?.next_of_kin_phone??''} required/></label></>}
+        {need==='LOAN'&&<><label>Requested repayment period (months)<input name="repayment_months" type="number" min="1" max="120" step="1" required/><small>Requested only. Final repayment terms are set during review.</small></label><label>Income source<input name="income_source" maxLength={160} required/></label><label>Next of kin name<input name="next_of_kin_name" defaultValue={session.user.user_metadata?.next_of_kin_name??''} minLength={2} maxLength={160} required/></label><label>Next of kin phone<input name="next_of_kin_phone" type="tel" pattern="[+]?[0-9 ()-]{9,20}" defaultValue={session.user.user_metadata?.next_of_kin_phone??''} required/></label><div className="member-support-row"><label>Guarantor name (optional)<input name="guarantor_name" minLength={2} maxLength={160}/></label><label>Guarantor phone (optional)<input name="guarantor_phone" type="tel" pattern="[+]?[0-9 ()-]{9,20}"/></label></div><small>Enter both guarantor details or leave both blank. Only upload their ID if they have agreed and the cooperative requests it.</small></>}
         <p className="member-support-note">Direct bill requests are requests for the cooperative to pay the named provider after approval. This app does not send M-Pesa or bank payments, and no grant is offered here.</p>
         <button className="member-primary" disabled={busy||loading}>{busy?'Sending request…':need==='LOAN'?'Submit loan request':'Submit bill support request'} <ArrowRight size={16}/></button>
       </form>
+    </section>
+
+    <section className="member-section-card member-support-documents"><div className="member-section-heading"><div><span><Camera size={18}/></span><h2>Private KYC documents</h2></div><button className="member-text-action" onClick={()=>void loadKycDocuments()} disabled={kycLoading||Boolean(kycBusy)}><RefreshCw size={14}/> Refresh</button></div>
+      <p className="member-section-intro">Upload clear ID images and a passport-style photo to support review. Files are stored privately and are accessible only to you and authorized KYC reviewers. Uploads are optional unless the cooperative requests them.</p>
+      {!memberId?<p className="member-support-note">Private KYC uploads are available after your membership is approved.</p>:<>
+        <label className="member-kyc-consent"><input type="checkbox" checked={thirdPartyConsent} onChange={event=>setThirdPartyConsent(event.target.checked)}/><span>I have permission from my next of kin or guarantor to upload their ID, and they know it will be reviewed confidentially by authorized cooperative staff.</span></label>
+        <div className="member-kyc-grid">{kycSlots.map(slot=>{const document=kycDocuments.find(item=>item.category===slot.category);const privateLink=document?privateLinks[slot.category]:null;return <article className="member-kyc-slot" key={slot.category}><div><strong>{slot.label}</strong><small>{kycLoading?'Checking upload status…':document?`Status: ${document.status.replace(/_/g,' ').toLowerCase()}`:'No document uploaded'}</small></div>{document&&<div className="member-kyc-actions">{privateLink?<a href={privateLink} target="_blank" rel="noreferrer"><ExternalLink size={14}/> Open private file</a>:<button type="button" onClick={()=>void preparePrivateLink(document)} disabled={kycBusy===`view-${document.id}`}><ExternalLink size={14}/>{kycBusy===`view-${document.id}`?'Preparing link…':'View securely'}</button>}</div>}<label className="member-kyc-file"><span><Upload size={14}/>{document?'Upload another':'Choose file'}</span><input type="file" accept={slot.accept} disabled={kycLoading||Boolean(kycBusy)||(slot.thirdParty&&!thirdPartyConsent)} onChange={event=>void handleKycFile(event,slot.category,slot.thirdParty)}/></label><small>JPG, PNG or PDF · up to 10 MB</small></article>})}</div>
+      </>}
+      {kycError&&<p className="member-error" role="alert">{kycError}</p>}
+      <p className="member-support-note">Never upload another person’s ID without their permission. A document upload does not approve a loan or bill request.</p>
     </section>
 
     <section className="member-section-card member-support-history"><div className="member-section-heading"><div><span><FileText size={18}/></span><h2>Your requests and loans</h2></div></div>{loading?<p className="member-section-intro">Loading your requests…</p>:requestRows.length?<div className="member-request-list">{requestRows.map(item=><article className="member-record-row" key={item.id}><span className="member-request-icon">{item.kind==='LOAN'?<Banknote size={18}/>:<HeartPulse size={18}/>}</span><div><strong>{item.label}</strong><small>{new Date(item.date).toLocaleDateString('en-KE')} · {cash(item.amount)}</small></div><span className="member-finance-status">{item.status.replace(/_/g,' ')}</span></article>)}</div>:<p className="member-section-intro">No requests or active loans are linked to your account yet.</p>}
