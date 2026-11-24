@@ -11,6 +11,7 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
   const [session, setSession] = useState<Session | null>(null)
   const [authMode, setAuthMode] = useState<'signup' | 'signin' | 'reset' | 'update'>(initialMode)
   const [applications, setApplications] = useState<Application[]>([])
+  const [applicationsLoaded, setApplicationsLoaded] = useState(false)
   const [counties, setCounties] = useState<Location[]>([])
   const [subCounties, setSubCounties] = useState<Location[]>([])
   const [countyId, setCountyId] = useState('')
@@ -38,9 +39,10 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
   }, [])
 
   useEffect(() => {
-    if (!supabase || !session) { setApplications([]); return }
+    if (!supabase || !session) { setApplications([]); setApplicationsLoaded(false); return }
+    setApplicationsLoaded(false)
     void supabase.from('membership_applications').select('id,status,created_at,registration_payment_status')
-      .order('created_at', { ascending: false }).then(({ data }) => setApplications((data ?? []) as Application[]))
+      .order('created_at', { ascending: false }).then(({ data, error: loadError }) => { if (!loadError) setApplications((data ?? []) as Application[]); setApplicationsLoaded(true) })
     void supabase.from('counties').select('id,name').eq('active', true).order('name')
       .then(({ data }) => setCounties((data ?? []) as Location[]))
   }, [session])
@@ -104,6 +106,9 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
   async function submitApplication(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(''); setMessage('')
     if (!supabase || !session?.user.email_confirmed_at) { setError('Verify your email and sign in before submitting an application.'); setBusy(false); return }
+    const { data: existingApplications, error: lookupError } = await supabase.from('membership_applications').select('id,status,created_at,registration_payment_status').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(1)
+    if (lookupError) { setError('We could not check your existing membership applications. Refresh and try again.'); setBusy(false); return }
+    if (existingApplications?.length) { setApplications(existingApplications as Application[]); setApplicationsLoaded(true); setError('A membership application already exists for your account. Check its status below.'); setBusy(false); return }
     if (!countyId || !subCounties.length) { setError('County and sub-county options are not configured yet. Please try again later.'); setBusy(false); return }
     const form = new FormData(event.currentTarget)
     const payload = {
@@ -141,7 +146,9 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
         <div className="modal-heading"><div className="eyebrow"><span className="eyebrow-dot" /> SECURE MEMBER ACCESS</div><h2 id="modal-title">Your Jamii Yangu account</h2><p>Signed in as {session.user.email}. Applications remain pending until payment and authorized review are complete.</p></div>
         {complete && <div className="success-state compact-success"><span className="success-icon"><BadgeCheck/></span><strong>Application submitted.</strong><p>No payment was collected. The application will appear below once its saved record is loaded.</p></div>}
         <div className="application-list"><h3>My applications</h3>{applications.length ? applications.map((application) => <article key={application.id}><div><strong>{application.status.replace(/_/g,' ')}</strong><small>Submitted {new Date(application.created_at).toLocaleDateString()}</small></div><span>{application.registration_payment_status.replace(/_/g,' ')}</span></article>) : <p>No membership applications yet.</p>}</div>
-        <form className="application-form" onSubmit={submitApplication}>
+        {applicationsLoaded && applications.length > 0 && <p className="preview-notice">An application is already linked to your account. Follow its status above; you do not need to submit another one.</p>}
+        {!applicationsLoaded && <p className="preview-notice">Checking for an existing membership application…</p>}
+        {applicationsLoaded && applications.length === 0 && <form className="application-form" onSubmit={submitApplication}>
           <h3>Membership application</h3>
           {!session.user.email_confirmed_at && <p className="form-error">Verify your email before sending an application.</p>}
           {session.user.email_confirmed_at && !counties.length && <p className="preview-notice">The cooperative's verified county directory has not been configured yet, so applications cannot be submitted.</p>}
@@ -156,7 +163,7 @@ export default function MembershipDialog({ onClose, initialMode = 'signup' }: { 
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button-primary form-submit" disabled={busy || !session.user.email_confirmed_at || !counties.length || registrationFee===null}>{busy ? 'Submitting…' : 'Submit application'} {!busy && <ArrowRight size={16}/>}</button>
           <p className="dialog-hint">The current registration fee is {registrationFee===null?'not configured':`KSh ${registrationFee.toLocaleString('en-KE')}`}. This form does not collect payment; finance verifies payment separately.</p>
-        </form>
+        </form>}
         <button className="footer-login" onClick={() => void supabase?.auth.signOut()}>Sign out</button>
       </> : <>
         <div className="dialog-tabs"><button className={authMode==='signup'?'selected':''} onClick={() => {setAuthMode('signup');setError('');setMessage('')}}>Create account</button><button className={authMode==='signin'?'selected':''} onClick={() => {setAuthMode('signin');setError('');setMessage('')}}>Sign in</button></div>
