@@ -7,7 +7,7 @@ import { supabase, supabaseConfigured } from '../lib/supabase'
 type Application = { id: string; status: string; created_at: string; registration_payment_status: string }
 type Location = { id: string; name: string }
 
-export default function MembershipDialog({ onClose, initialMode = 'signup' }: { onClose: () => void; initialMode?: 'signup' | 'signin' }) {
+export default function MembershipDialog({ onClose, initialMode = 'signup' }: { onClose: () => void; initialMode?: 'signup' | 'signin' | 'update' }) {
   const [session, setSession] = useState<Session | null>(null)
   const [authMode, setAuthMode] = useState<'signup' | 'signin' | 'reset' | 'update'>(initialMode)
   const [applications, setApplications] = useState<Application[]>([])

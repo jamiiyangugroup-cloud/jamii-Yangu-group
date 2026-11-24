@@ -20,8 +20,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [compactNav, setCompactNav] = useState(() => window.innerWidth <= 1180)
   const [scrolled, setScrolled] = useState(false)
-  const [showForm, setShowForm] = useState(() => new URLSearchParams(window.location.search).get('join') === '1')
-  const [formMode, setFormMode] = useState<'signup' | 'signin'>('signup')
+  const [showForm, setShowForm] = useState(() => new URLSearchParams(window.location.search).get('join') === '1' || new URLSearchParams(window.location.search).get('mode') === 'recovery' || window.location.hash.includes('type=recovery'))
+  const [formMode, setFormMode] = useState<'signup' | 'signin' | 'update'>(() => new URLSearchParams(window.location.search).get('mode') === 'recovery' || window.location.hash.includes('type=recovery') ? 'update' : 'signup')
   const openForm = (mode: 'signup' | 'signin') => { setFormMode(mode); setShowForm(true) }
   const closeMenu = () => setMenuOpen(false)
   useEffect(() => {
